@@ -4,7 +4,7 @@ project(pose)
 
 # PCL
 find_package(PCL 1.2 REQUIRED)
-include_directories(${PCL_INCLUDE_DIRS} ./)
+include_directories(${PCL_INCLUDE_DIRS})
 link_directories(${PCL_LIBRARY_DIRS})
 add_definitions(${PCL_DEFINITIONS})
 
@@ -22,10 +22,13 @@ include_directories(SYSTEM ${HDF5_INCLUDE_DIR})
 find_package(FLANN)
 include_directories(${FLANN_INCLUDE_DIRS})
 
+# Include src directory
+include_directories(src)
+
 # Main executable
-add_executable(pose pose.cpp)
+add_executable(pose src/pose_estimation.h src/main.cpp)
 target_link_libraries(pose ${PCL_LIBRARIES} realsense2 ${OpenCV_LIBS} ${FLANN_LIBRARIES} ${HDF5_LIBRARIES} ${Boost_LIBRARIES})
 
 # Tests executable
-add_executable(tests tests.cpp)
+add_executable(tests src/pose_estimation.h src/tests.cpp)
 target_link_libraries(tests ${PCL_LIBRARIES} realsense2 ${OpenCV_LIBS} ${FLANN_LIBRARIES} ${HDF5_LIBRARIES} ${Boost_LIBRARIES})

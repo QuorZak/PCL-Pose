@@ -1,3 +1,0 @@
-/home/zak/Repos/POSE/build/CMakeFiles/pose.dir
-/home/zak/Repos/POSE/build/CMakeFiles/edit_cache.dir
-/home/zak/Repos/POSE/build/CMakeFiles/rebuild_cache.dir

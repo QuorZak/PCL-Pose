@@ -1,3 +1,24 @@
 
 # Random variables
 gitpo.txt
+
+# Compiled source #
+build/
+cmake-build-debug/
+
+# Logs and databases
+*.log
+*.sqlite
+
+# OS generated files #
+.DS_Store
+ehthumbs.db
+Icon?
+Thumbs.db
+
+# .idea
+.idea/
+
+# PCL Demo
+PCL_Official_VFH_Demo
+
