@@ -4,9 +4,9 @@
 CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
   /usr/include/stdc-predef.h \
   ../pose.h \
-  /usr/include/librealsense2/rs.hpp \
-  /usr/include/librealsense2/rs.h \
-  /usr/include/librealsense2/rsutil.h \
+  /usr/local/include/librealsense2/rs.hpp \
+  /usr/local/include/librealsense2/rs.h \
+  /usr/local/include/librealsense2/rsutil.h \
   /usr/include/c++/11/stdlib.h \
   /usr/include/c++/11/cstdlib \
   /usr/include/x86_64-linux-gnu/c++/11/bits/c++config.h \
@@ -108,27 +108,27 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
   /usr/include/c++/11/tr1/poly_laguerre.tcc \
   /usr/include/c++/11/tr1/riemann_zeta.tcc \
   /usr/lib/gcc/x86_64-linux-gnu/11/include/float.h \
-  /usr/include/librealsense2/h/rs_types.h \
-  /usr/include/librealsense2/h/rs_sensor.h \
-  /usr/include/librealsense2/h/rs_types.h \
-  /usr/include/librealsense2/h/rs_context.h \
-  /usr/include/librealsense2/h/rs_device.h \
-  /usr/include/librealsense2/h/rs_sensor.h \
-  /usr/include/librealsense2/h/rs_frame.h \
-  /usr/include/librealsense2/h/rs_option.h \
-  /usr/include/librealsense2/h/rs_processing.h \
-  /usr/include/librealsense2/h/rs_option.h \
-  /usr/include/librealsense2/h/rs_record_playback.h \
-  /usr/include/librealsense2/hpp/rs_types.hpp \
-  /usr/include/librealsense2/rs.h \
-  /usr/include/librealsense2/h/rs_context.h \
-  /usr/include/librealsense2/h/rs_device.h \
-  /usr/include/librealsense2/h/rs_frame.h \
-  /usr/include/librealsense2/h/rs_processing.h \
-  /usr/include/librealsense2/h/rs_record_playback.h \
-  /usr/include/librealsense2/h/rs_sensor.h \
-  /usr/include/librealsense2/h/rs_pipeline.h \
-  /usr/include/librealsense2/h/rs_config.h \
+  /usr/local/include/librealsense2/h/rs_types.h \
+  /usr/local/include/librealsense2/h/rs_sensor.h \
+  /usr/local/include/librealsense2/h/rs_types.h \
+  /usr/local/include/librealsense2/h/rs_context.h \
+  /usr/local/include/librealsense2/h/rs_device.h \
+  /usr/local/include/librealsense2/h/rs_sensor.h \
+  /usr/local/include/librealsense2/h/rs_frame.h \
+  /usr/local/include/librealsense2/h/rs_option.h \
+  /usr/local/include/librealsense2/h/rs_processing.h \
+  /usr/local/include/librealsense2/h/rs_option.h \
+  /usr/local/include/librealsense2/h/rs_record_playback.h \
+  /usr/local/include/librealsense2/hpp/rs_types.hpp \
+  /usr/local/include/librealsense2/rs.h \
+  /usr/local/include/librealsense2/h/rs_context.h \
+  /usr/local/include/librealsense2/h/rs_device.h \
+  /usr/local/include/librealsense2/h/rs_frame.h \
+  /usr/local/include/librealsense2/h/rs_processing.h \
+  /usr/local/include/librealsense2/h/rs_record_playback.h \
+  /usr/local/include/librealsense2/h/rs_sensor.h \
+  /usr/local/include/librealsense2/h/rs_pipeline.h \
+  /usr/local/include/librealsense2/h/rs_config.h \
   /usr/include/c++/11/string \
   /usr/include/c++/11/bits/stringfwd.h \
   /usr/include/c++/11/bits/memoryfwd.h \
@@ -284,25 +284,25 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
   /usr/include/c++/11/ratio \
   /usr/include/c++/11/ctime \
   /usr/include/c++/11/bits/parse_numbers.h \
-  /usr/include/librealsense2/hpp/rs_context.hpp \
-  /usr/include/librealsense2/hpp/rs_types.hpp \
-  /usr/include/librealsense2/hpp/rs_record_playback.hpp \
-  /usr/include/librealsense2/hpp/rs_device.hpp \
-  /usr/include/librealsense2/hpp/rs_sensor.hpp \
-  /usr/include/librealsense2/hpp/rs_frame.hpp \
-  /usr/include/librealsense2/hpp/rs_processing.hpp \
-  /usr/include/librealsense2/hpp/rs_options.hpp \
-  /usr/include/librealsense2/h/rs_types.h \
+  /usr/local/include/librealsense2/hpp/rs_context.hpp \
+  /usr/local/include/librealsense2/hpp/rs_types.hpp \
+  /usr/local/include/librealsense2/hpp/rs_record_playback.hpp \
+  /usr/local/include/librealsense2/hpp/rs_device.hpp \
+  /usr/local/include/librealsense2/hpp/rs_sensor.hpp \
+  /usr/local/include/librealsense2/hpp/rs_frame.hpp \
+  /usr/local/include/librealsense2/hpp/rs_processing.hpp \
+  /usr/local/include/librealsense2/hpp/rs_options.hpp \
+  /usr/local/include/librealsense2/h/rs_types.h \
   /usr/include/c++/11/cstring \
   /usr/include/string.h \
   /usr/include/strings.h \
-  /usr/include/librealsense2/hpp/rs_device.hpp \
-  /usr/include/librealsense2/hpp/rs_frame.hpp \
-  /usr/include/librealsense2/hpp/rs_processing.hpp \
-  /usr/include/librealsense2/hpp/rs_record_playback.hpp \
-  /usr/include/librealsense2/hpp/rs_sensor.hpp \
-  /usr/include/librealsense2/hpp/rs_pipeline.hpp \
-  /usr/include/librealsense2/hpp/rs_context.hpp \
+  /usr/local/include/librealsense2/hpp/rs_device.hpp \
+  /usr/local/include/librealsense2/hpp/rs_frame.hpp \
+  /usr/local/include/librealsense2/hpp/rs_processing.hpp \
+  /usr/local/include/librealsense2/hpp/rs_record_playback.hpp \
+  /usr/local/include/librealsense2/hpp/rs_sensor.hpp \
+  /usr/local/include/librealsense2/hpp/rs_pipeline.hpp \
+  /usr/local/include/librealsense2/hpp/rs_context.hpp \
   /usr/local/include/pcl-1.14/pcl/point_cloud.h \
   /usr/include/eigen3/Eigen/StdVector \
   /usr/include/eigen3/Eigen/Core \
@@ -2143,8 +2143,6 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 
 /usr/include/boost/cerrno.hpp:
 
-/usr/include/boost/system/error_code.hpp:
-
 /usr/include/boost/filesystem/path_traits.hpp:
 
 /usr/include/boost/filesystem/config.hpp:
@@ -2204,8 +2202,6 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 /usr/include/vtk-9.1/vtkGenericCell.h:
 
 /usr/include/vtk-9.1/vtkEmptyCell.h:
-
-/usr/include/vtk-9.1/vtkDataObject.h:
 
 /usr/include/vtk-9.1/vtkDataSet.h:
 
@@ -2273,6 +2269,8 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 
 /usr/include/boost/optional/detail/optional_relops.hpp:
 
+/usr/include/boost/optional/detail/optional_reference_spec.hpp:
+
 /usr/include/boost/optional/detail/optional_config.hpp:
 
 /usr/include/boost/utility/compare_pointees.hpp:
@@ -2330,6 +2328,12 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 /usr/include/boost/mpl/list.hpp:
 
 /usr/include/boost/variant/detail/make_variant_list.hpp:
+
+/usr/include/boost/none.hpp:
+
+/usr/include/boost/mpl/list/aux_/preprocessed/plain/list10.hpp:
+
+/usr/include/boost/move/adl_move_swap.hpp:
 
 /usr/include/boost/variant/detail/move.hpp:
 
@@ -2415,6 +2419,8 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 
 /usr/include/boost/type_traits/has_trivial_destructor.hpp:
 
+/usr/include/boost/type_traits/is_default_constructible.hpp:
+
 /usr/include/boost/type_traits/is_constructible.hpp:
 
 /usr/include/boost/type_traits/is_copy_constructible.hpp:
@@ -2438,10 +2444,6 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 /usr/include/boost/function.hpp:
 
 /usr/include/boost/signals2/signal.hpp:
-
-/usr/include/boost/variant/detail/backup_holder.hpp:
-
-/usr/include/vtk-9.1/vtkCoordinate.h:
 
 /usr/include/vtk-9.1/vtkActor2D.h:
 
@@ -2550,10 +2552,6 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 /usr/include/vtk-9.1/vtkObjectBase.h:
 
 /usr/include/vtk-9.1/vtkCommonCoreModule.h:
-
-/usr/include/vtk-9.1/vtkMath.h:
-
-/usr/include/vtk-9.1/vtkSmartPointerBase.h:
 
 /usr/include/boost/detail/bitmask.hpp:
 
@@ -2815,6 +2813,8 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 
 /usr/include/boost/range/algorithm/equal.hpp:
 
+/usr/include/boost/iterator/iterator_adaptor.hpp:
+
 /usr/include/boost/iterator/reverse_iterator.hpp:
 
 /usr/include/boost/range/empty.hpp:
@@ -2881,9 +2881,11 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 
 /usr/include/boost/type_traits/add_pointer.hpp:
 
-/usr/include/boost/iterator/detail/enable_if.hpp:
-
 /usr/include/boost/type_traits/remove_pointer.hpp:
+
+/usr/local/include/pcl-1.14/pcl/features/normal_3d.h:
+
+/usr/include/boost/type_traits/is_member_pointer.hpp:
 
 /usr/include/boost/type_traits/is_volatile.hpp:
 
@@ -2944,10 +2946,6 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 /usr/include/boost/mpl/aux_/preprocessed/gcc/times.hpp:
 
 /usr/include/boost/mpl/multiplies.hpp:
-
-/usr/include/boost/optional/optional_fwd.hpp:
-
-/usr/include/boost/numeric/conversion/udt_builtin_mixture_enum.hpp:
 
 /usr/include/boost/numeric/conversion/detail/sign_mixture.hpp:
 
@@ -3179,8 +3177,6 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 
 /usr/include/boost/fusion/adapted/mpl/detail/at_impl.hpp:
 
-/usr/include/eigen3/Eigen/src/Householder/Householder.h:
-
 /usr/include/eigen3/Eigen/Jacobi:
 
 /usr/include/c++/11/bits/invoke.h:
@@ -3223,14 +3219,6 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 
 /usr/include/eigen3/Eigen/src/Core/products/GeneralMatrixMatrixTriangular.h:
 
-/usr/include/boost/none.hpp:
-
-/usr/include/boost/mpl/list/aux_/preprocessed/plain/list10.hpp:
-
-/usr/include/boost/move/adl_move_swap.hpp:
-
-/usr/include/librealsense2/hpp/rs_options.hpp:
-
 /usr/local/include/pcl-1.14/pcl/visualization/impl/pcl_visualizer.hpp:
 
 /usr/include/c++/11/bits/uses_allocator.h:
@@ -3268,6 +3256,18 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 /usr/include/boost/fusion/view/filter_view/detail/value_of_impl.hpp:
 
 /usr/include/boost/mpl/bind.hpp:
+
+/usr/include/eigen3/Eigen/src/Core/Fuzzy.h:
+
+/usr/include/eigen3/Eigen/src/Core/Ref.h:
+
+/usr/include/boost/date_time/gregorian/greg_month.hpp:
+
+/usr/lib/gcc/x86_64-linux-gnu/11/include/waitpkgintrin.h:
+
+/usr/include/x86_64-linux-gnu/sys/single_threaded.h:
+
+/usr/include/boost/fusion/view/single_view/detail/prior_impl.hpp:
 
 /usr/include/boost/concept/detail/general.hpp:
 
@@ -3310,16 +3310,6 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 /usr/include/boost/mpl/at.hpp:
 
 /usr/include/boost/fusion/support/detail/segmented_fold_until_impl.hpp:
-
-/usr/local/include/pcl-1.14/pcl/features/normal_3d.h:
-
-/usr/include/boost/type_traits/is_member_pointer.hpp:
-
-/usr/include/librealsense2/hpp/rs_types.hpp:
-
-/usr/include/boost/interprocess/errors.hpp:
-
-/usr/include/boost/mpl/aux_/config/bcc.hpp:
 
 /usr/include/eigen3/Eigen/src/Core/Matrix.h:
 
@@ -3393,17 +3383,15 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 
 /usr/include/eigen3/Eigen/src/Core/arch/SSE/TypeCasting.h:
 
+/usr/include/eigen3/Eigen/src/Core/arch/Default/GenericPacketMathFunctionsFwd.h:
+
+/usr/include/vtk-9.1/vtkkwiml/int.h:
+
+/usr/lib/gcc/x86_64-linux-gnu/11/include/adxintrin.h:
+
+/usr/include/boost/fusion/sequence/intrinsic/end.hpp:
+
 /usr/include/eigen3/Eigen/src/Core/arch/Default/TypeCasting.h:
-
-/usr/include/eigen3/Eigen/Geometry:
-
-/usr/include/boost/mpl/aux_/front_impl.hpp:
-
-/usr/include/boost/mpl/prior.hpp:
-
-/usr/include/boost/mpl/aux_/preprocessed/gcc/inherit.hpp:
-
-/usr/include/eigen3/Eigen/src/Core/MathFunctionsImpl.h:
 
 /usr/local/include/pcl-1.14/pcl/point_representation.h:
 
@@ -3493,10 +3481,6 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 
 /usr/include/eigen3/Eigen/src/Core/Array.h:
 
-/usr/lib/gcc/x86_64-linux-gnu/11/include/amxbf16intrin.h:
-
-/usr/include/eigen3/Eigen/src/Core/Fuzzy.h:
-
 /usr/lib/gcc/x86_64-linux-gnu/11/include/amxtileintrin.h:
 
 /usr/include/boost/type_traits/is_unsigned.hpp:
@@ -3569,22 +3553,6 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 
 /usr/include/boost/preprocessor/seq/elem.hpp:
 
-/usr/include/eigen3/Eigen/src/SVD/JacobiSVD.h:
-
-/usr/include/x86_64-linux-gnu/bits/types/timer_t.h:
-
-/usr/include/c++/11/bits/std_function.h:
-
-/usr/include/eigen3/Eigen/Cholesky:
-
-/usr/include/boost/preprocessor/control/expr_iif.hpp:
-
-/usr/include/eigen3/Eigen/src/SVD/UpperBidiagonalization.h:
-
-/usr/include/eigen3/Eigen/src/Core/ProductEvaluators.h:
-
-/usr/lib/gcc/x86_64-linux-gnu/11/include/avx512vbmivlintrin.h:
-
 /usr/lib/gcc/x86_64-linux-gnu/11/include/avx512vbmiintrin.h:
 
 /usr/include/x86_64-linux-gnu/c++/11/bits/cxxabi_tweaks.h:
@@ -3602,6 +3570,10 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 /usr/lib/gcc/x86_64-linux-gnu/11/include/stdbool.h:
 
 /usr/include/eigen3/Eigen/src/Core/Random.h:
+
+/usr/lib/gcc/x86_64-linux-gnu/11/include/avx512vlintrin.h:
+
+/usr/include/boost/preprocessor/comparison/less_equal.hpp:
 
 /usr/include/boost/bind/placeholders.hpp:
 
@@ -3625,19 +3597,7 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 
 /usr/lib/gcc/x86_64-linux-gnu/11/include/xsaveintrin.h:
 
-/usr/include/boost/mpl/aux_/has_type.hpp:
-
 /usr/lib/gcc/x86_64-linux-gnu/11/include/avx512pfintrin.h:
-
-/usr/include/boost/date_time/gregorian/greg_month.hpp:
-
-/usr/lib/gcc/x86_64-linux-gnu/11/include/waitpkgintrin.h:
-
-/usr/include/eigen3/Eigen/src/Core/Ref.h:
-
-/usr/include/x86_64-linux-gnu/sys/single_threaded.h:
-
-/usr/include/boost/fusion/view/single_view/detail/prior_impl.hpp:
 
 /usr/include/eigen3/Eigen/src/Core/products/TriangularMatrixVector.h:
 
@@ -3691,25 +3651,11 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 
 /usr/include/boost/preprocessor/repetition/enum_trailing_params.hpp:
 
-/usr/include/eigen3/Eigen/QR:
-
-/usr/include/boost/blank_fwd.hpp:
-
-/usr/include/c++/11/atomic:
-
-/usr/include/x86_64-linux-gnu/bits/pthread_stack_min-dynamic.h:
-
-/usr/include/boost/fusion/container/deque/deque_fwd.hpp:
-
-/usr/include/vtk-9.1/vtkkwiml/int.h:
-
-/usr/lib/gcc/x86_64-linux-gnu/11/include/adxintrin.h:
-
-/usr/include/eigen3/Eigen/src/Core/arch/Default/GenericPacketMathFunctionsFwd.h:
-
-/usr/include/boost/fusion/sequence/intrinsic/end.hpp:
-
 /usr/include/eigen3/Eigen/src/Core/MatrixBase.h:
+
+/usr/include/boost/mpl/aux_/has_type.hpp:
+
+/usr/local/include/librealsense2/rs.h:
 
 /usr/lib/gcc/x86_64-linux-gnu/11/include/ia32intrin.h:
 
@@ -3753,19 +3699,17 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 
 /usr/lib/gcc/x86_64-linux-gnu/11/include/xmmintrin.h:
 
+/usr/include/boost/iterator/detail/enable_if.hpp:
+
+/usr/local/include/librealsense2/hpp/rs_device.hpp:
+
 /usr/include/boost/mpl/at_fwd.hpp:
 
 /usr/include/boost/mpl/has_xxx.hpp:
 
-/usr/include/x86_64-linux-gnu/bits/types/error_t.h:
-
 /usr/include/hdf5/serial/H5FDfamily.h:
 
 /usr/lib/gcc/x86_64-linux-gnu/11/include/mmintrin.h:
-
-/usr/include/eigen3/Eigen/src/Core/util/ConfigureVectorization.h:
-
-/usr/include/boost/mpl/contains.hpp:
 
 /usr/include/eigen3/Eigen/src/Core/util/Macros.h:
 
@@ -3789,27 +3733,27 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 
 /usr/include/boost/fusion/sequence/intrinsic/segments.hpp:
 
-/usr/lib/gcc/x86_64-linux-gnu/11/include/avx512vlintrin.h:
-
-/usr/include/librealsense2/hpp/rs_pipeline.hpp:
+/usr/local/include/librealsense2/hpp/rs_pipeline.hpp:
 
 /usr/include/strings.h:
 
-/usr/include/librealsense2/hpp/rs_processing.hpp:
+/usr/local/include/librealsense2/hpp/rs_frame.hpp:
 
-/usr/include/c++/11/bits/list.tcc:
+/usr/include/eigen3/Eigen/QR:
 
-/usr/include/vtk-9.1/vtkFloatArray.h:
+/usr/include/boost/blank_fwd.hpp:
 
-/usr/include/vtk-9.1/vtkVersion.h:
+/usr/include/c++/11/atomic:
 
-/usr/include/boost/fusion/mpl/insert_range.hpp:
+/usr/include/x86_64-linux-gnu/bits/pthread_stack_min-dynamic.h:
 
-/usr/include/boost/mpl/logical.hpp:
+/usr/include/boost/fusion/container/deque/deque_fwd.hpp:
 
-/usr/include/librealsense2/hpp/rs_record_playback.hpp:
+/usr/local/include/librealsense2/hpp/rs_record_playback.hpp:
 
-/usr/include/boost/fusion/iterator/segmented_iterator.hpp:
+/usr/include/boost/filesystem/exception.hpp:
+
+/usr/include/boost/mpl/empty_base.hpp:
 
 /usr/include/vtk-9.1/vtkDataSetMapper.h:
 
@@ -3871,10 +3815,6 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 
 /usr/lib/gcc/x86_64-linux-gnu/11/include/stdint.h:
 
-/usr/include/boost/type_traits/is_default_constructible.hpp:
-
-/usr/include/librealsense2/rs.hpp:
-
 /usr/include/flann/algorithms/center_chooser.h:
 
 /usr/include/boost/algorithm/string/classification.hpp:
@@ -3889,6 +3829,8 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 
 /usr/include/boost/fusion/container/set/set_fwd.hpp:
 
+/usr/include/c++/11/bits/locale_facets.tcc:
+
 /usr/include/c++/11/numeric:
 
 /usr/include/eigen3/Eigen/src/Core/arch/Default/Settings.h:
@@ -3899,43 +3841,55 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 
 /usr/include/x86_64-linux-gnu/bits/types/struct_tm.h:
 
-/usr/include/librealsense2/h/rs_config.h:
+/usr/include/x86_64-linux-gnu/bits/types/timer_t.h:
 
-/usr/include/librealsense2/h/rs_pipeline.h:
+/usr/include/eigen3/Eigen/src/SVD/JacobiSVD.h:
 
-/usr/include/eigen3/Eigen/src/Core/util/ReshapedHelper.h:
+/usr/include/c++/11/bits/std_function.h:
 
-/usr/include/c++/11/tr1/bessel_function.tcc:
+/usr/include/eigen3/Eigen/Cholesky:
 
-/usr/include/boost/type_traits/declval.hpp:
+/usr/include/boost/preprocessor/control/expr_iif.hpp:
 
-/usr/include/vtk-9.1/vtkUnsignedCharArray.h:
+/usr/include/eigen3/Eigen/src/Core/util/ConfigureVectorization.h:
 
-/usr/include/c++/11/bits/atomic_lockfree_defines.h:
+/usr/include/boost/mpl/contains.hpp:
 
-/usr/include/vtk-9.1/vtkInteractorObserver.h:
+/usr/include/boost/optional/optional_fwd.hpp:
 
-/usr/include/string.h:
+/usr/include/boost/numeric/conversion/udt_builtin_mixture_enum.hpp:
 
-/usr/include/boost/preprocessor/control/if.hpp:
+/usr/local/include/librealsense2/h/rs_frame.h:
 
-/usr/local/include/pcl-1.14/pcl/visualization/common/impl/shapes.hpp:
+/usr/include/c++/11/complex:
 
-/usr/include/eigen3/Eigen/src/Core/IO.h:
+/usr/include/x86_64-linux-gnu/bits/math-vector.h:
 
-/usr/include/x86_64-linux-gnu/bits/types/struct_itimerspec.h:
+/usr/include/eigen3/Eigen/src/Core/Solve.h:
 
-/usr/include/boost/fusion/adapted/mpl/detail/end_impl.hpp:
+/usr/include/boost/current_function.hpp:
 
-/usr/include/boost/optional/detail/optional_reference_spec.hpp:
+/usr/include/boost/signals2/connection.hpp:
 
-/usr/include/librealsense2/h/rs_frame.h:
+/usr/include/boost/fusion/iterator/next.hpp:
 
-/usr/include/c++/11/bits/erase_if.h:
+/usr/include/boost/interprocess/errors.hpp:
 
-/usr/include/c++/11/limits:
+/usr/include/boost/mpl/aux_/config/bcc.hpp:
 
-/usr/include/librealsense2/h/rs_types.h:
+/usr/include/boost/system/error_code.hpp:
+
+/usr/local/include/librealsense2/h/rs_sensor.h:
+
+/usr/include/x86_64-linux-gnu/c++/11/bits/c++locale.h:
+
+/usr/include/linux/errno.h:
+
+/usr/lib/gcc/x86_64-linux-gnu/11/include/bmi2intrin.h:
+
+/usr/local/include/pcl-1.14/pcl/PCLPointField.h:
+
+/usr/include/boost/fusion/iterator/detail/distance.hpp:
 
 /usr/include/eigen3/Eigen/src/Core/products/SelfadjointProduct.h:
 
@@ -3953,43 +3907,11 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 
 /usr/include/c++/11/bits/localefwd.h:
 
-/usr/include/hdf5/serial/H5Ipublic.h:
-
-/usr/include/eigen3/Eigen/src/Core/util/SymbolicIndex.h:
-
-/usr/include/x86_64-linux-gnu/c++/11/bits/error_constants.h:
-
 /usr/include/c++/11/bit:
 
 /usr/include/linux/stddef.h:
 
 /usr/include/boost/mpl/vector/aux_/at.hpp:
-
-/usr/include/librealsense2/h/rs_context.h:
-
-/usr/include/c++/11/cstddef:
-
-/usr/include/boost/mpl/aux_/filter_iter.hpp:
-
-/usr/include/c++/11/bits/stl_vector.h:
-
-/usr/lib/gcc/x86_64-linux-gnu/11/include/cetintrin.h:
-
-/usr/lib/gcc/x86_64-linux-gnu/11/include/mm_malloc.h:
-
-/usr/include/vtk-9.1/vtkPointSet.h:
-
-/usr/include/boost/bind/mem_fn_template.hpp:
-
-/usr/include/x86_64-linux-gnu/bits/time64.h:
-
-/usr/include/c++/11/system_error:
-
-/usr/include/x86_64-linux-gnu/bits/types/locale_t.h:
-
-/usr/include/vtk-9.1/vtkLongLongArray.h:
-
-/usr/include/features-time64.h:
 
 /usr/include/c++/11/climits:
 
@@ -4019,11 +3941,23 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 
 /usr/include/c++/11/bits/stl_pair.h:
 
+/usr/include/boost/variant/variant.hpp:
+
+/usr/include/boost/mpl/aux_/config/preprocessor.hpp:
+
+/usr/include/c++/11/ext/numeric_traits.h:
+
+/usr/include/eigen3/Eigen/src/Eigenvalues/ComplexEigenSolver.h:
+
+/usr/include/c++/11/bits/atomic_base.h:
+
 /usr/include/boost/smart_ptr/detail/local_sp_deleter.hpp:
 
 /usr/include/x86_64-linux-gnu/bits/iscanonical.h:
 
 /usr/include/x86_64-linux-gnu/bits/mathcalls-helper-functions.h:
+
+/usr/include/x86_64-linux-gnu/bits/types/error_t.h:
 
 /usr/include/vtk-9.1/vtkProp.h:
 
@@ -4031,15 +3965,13 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 
 /usr/include/c++/11/bits/locale_classes.h:
 
+/usr/include/x86_64-linux-gnu/bits/flt-eval-method.h:
+
 /usr/include/boost/type_traits/alignment_of.hpp:
 
 /usr/include/boost/algorithm/string/detail/classification.hpp:
 
 /usr/lib/gcc/x86_64-linux-gnu/11/include/x86gprintrin.h:
-
-/usr/include/x86_64-linux-gnu/bits/math-vector.h:
-
-/usr/include/c++/11/complex:
 
 /usr/include/eigen3/Eigen/src/Core/BooleanRedux.h:
 
@@ -4071,10 +4003,6 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 
 /usr/include/c++/11/pstl/glue_memory_defs.h:
 
-/usr/include/boost/fusion/support/detail/is_native_fusion_sequence.hpp:
-
-/usr/include/eigen3/Eigen/src/Core/DiagonalMatrix.h:
-
 /usr/include/boost/mpl/not.hpp:
 
 /usr/include/x86_64-linux-gnu/c++/11/bits/c++allocator.h:
@@ -4099,27 +4027,21 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 
 /usr/include/x86_64-linux-gnu/bits/waitflags.h:
 
-/usr/include/x86_64-linux-gnu/bits/types/struct_timespec.h:
+/usr/include/boost/date_time/date_duration_types.hpp:
 
-/usr/include/x86_64-linux-gnu/bits/stdint-uintn.h:
+/usr/include/boost/type_traits/has_plus.hpp:
 
-/usr/include/c++/11/ext/atomicity.h:
+/usr/include/boost/type_traits/is_convertible.hpp:
 
-/usr/include/c++/11/bits/stl_iterator.h:
-
-/usr/include/boost/preprocessor/arithmetic/inc.hpp:
-
-/usr/include/boost/numeric/conversion/cast.hpp:
-
-/usr/include/boost/fusion/iterator/detail/segment_sequence.hpp:
-
-/usr/include/librealsense2/h/rs_record_playback.h:
-
-/usr/include/boost/interprocess/detail/std_fwd.hpp:
-
-/usr/include/eigen3/Eigen/src/misc/Image.h:
+/usr/include/boost/mpl/aux_/nttp_decl.hpp:
 
 /usr/include/x86_64-linux-gnu/sys/select.h:
+
+/usr/include/hdf5/serial/H5Ipublic.h:
+
+/usr/include/eigen3/Eigen/src/Core/util/SymbolicIndex.h:
+
+/usr/include/x86_64-linux-gnu/c++/11/bits/error_constants.h:
 
 /usr/include/c++/11/bits/cxxabi_init_exception.h:
 
@@ -4130,6 +4052,14 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 /usr/include/boost/aligned_storage.hpp:
 
 /usr/include/stdlib.h:
+
+/usr/include/x86_64-linux-gnu/bits/types/locale_t.h:
+
+/usr/include/vtk-9.1/vtkLongLongArray.h:
+
+/usr/include/features-time64.h:
+
+/usr/include/c++/11/system_error:
 
 /usr/include/c++/11/chrono:
 
@@ -4151,6 +4081,12 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 
 /usr/include/eigen3/Eigen/src/Core/CommaInitializer.h:
 
+/usr/include/boost/variant/detail/backup_holder.hpp:
+
+/usr/include/vtk-9.1/vtkCoordinate.h:
+
+/usr/local/include/librealsense2/hpp/rs_processing.hpp:
+
 /usr/include/c++/11/type_traits:
 
 /usr/include/boost/mpl/vector/aux_/tag.hpp:
@@ -4165,13 +4101,9 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 
 /usr/include/x86_64-linux-gnu/bits/mathcalls.h:
 
-/usr/include/eigen3/Eigen/src/Core/Solve.h:
+/usr/include/c++/11/limits:
 
-/usr/include/boost/current_function.hpp:
-
-/usr/include/boost/signals2/connection.hpp:
-
-/usr/include/boost/fusion/iterator/next.hpp:
+/usr/local/include/librealsense2/h/rs_config.h:
 
 /usr/include/boost/iterator/detail/config_undef.hpp:
 
@@ -4221,17 +4153,35 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 
 /usr/include/c++/11/streambuf:
 
+/usr/include/features.h:
+
+../pose.h:
+
 /usr/include/eigen3/Eigen/src/Core/arch/Default/ConjHelper.h:
 
 /usr/include/x86_64-linux-gnu/bits/local_lim.h:
 
 /usr/include/boost/mpl/aux_/lambda_arity_param.hpp:
 
+/usr/local/include/pcl-1.14/pcl/visualization/common/impl/shapes.hpp:
+
+/usr/include/eigen3/Eigen/src/Core/IO.h:
+
+/usr/include/x86_64-linux-gnu/bits/types/struct_itimerspec.h:
+
+/usr/include/boost/fusion/adapted/mpl/detail/end_impl.hpp:
+
 /usr/include/eigen3/Eigen/src/Core/CwiseUnaryView.h:
 
-/usr/include/librealsense2/h/rs_processing.h:
-
 /usr/local/include/pcl-1.14/pcl/common/transforms.h:
+
+/usr/include/vtk-9.1/vtkMath.h:
+
+/usr/include/vtk-9.1/vtkSmartPointerBase.h:
+
+/usr/local/include/librealsense2/h/rs_pipeline.h:
+
+/usr/include/boost/preprocessor/repeat.hpp:
 
 /usr/include/boost/config/no_tr1/functional.hpp:
 
@@ -4243,13 +4193,9 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 
 /usr/include/boost/date_time/period.hpp:
 
+/usr/local/include/librealsense2/h/rs_option.h:
+
 /usr/include/pthread.h:
-
-/usr/include/boost/iterator/iterator_adaptor.hpp:
-
-/usr/include/librealsense2/hpp/rs_device.hpp:
-
-/usr/include/c++/11/bits/stl_multimap.h:
 
 /usr/include/boost/smart_ptr/detail/sp_disable_deprecated.hpp:
 
@@ -4257,19 +4203,21 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 
 /usr/include/boost/fusion/view/joint_view/detail/deref_impl.hpp:
 
-/usr/include/eigen3/Eigen/src/Core/PlainObjectBase.h:
+/usr/include/eigen3/Eigen/src/Core/util/ReshapedHelper.h:
 
-/usr/include/eigen3/Eigen/src/Core/DiagonalProduct.h:
+/usr/include/c++/11/tr1/bessel_function.tcc:
 
-/usr/include/boost/mpl/aux_/iter_fold_if_impl.hpp:
+/usr/include/boost/type_traits/declval.hpp:
 
-/usr/include/boost/mpl/aux_/arity.hpp:
+/usr/include/vtk-9.1/vtkUnsignedCharArray.h:
 
-/usr/lib/gcc/x86_64-linux-gnu/11/include/vpclmulqdqintrin.h:
+/usr/include/c++/11/bits/atomic_lockfree_defines.h:
 
-/usr/include/x86_64-linux-gnu/bits/types/struct_timeval.h:
+/usr/include/vtk-9.1/vtkInteractorObserver.h:
 
-/usr/include/x86_64-linux-gnu/asm/errno.h:
+/usr/include/string.h:
+
+/usr/include/boost/preprocessor/control/if.hpp:
 
 /usr/local/include/pcl-1.14/pcl/search/organized.h:
 
@@ -4285,8 +4233,6 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 
 /usr/lib/gcc/x86_64-linux-gnu/11/include/avx512vbmi2intrin.h:
 
-/usr/include/librealsense2/hpp/rs_frame.hpp:
-
 /usr/include/x86_64-linux-gnu/bits/fp-logb.h:
 
 /usr/include/boost/weak_ptr.hpp:
@@ -4297,37 +4243,31 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 
 /usr/include/boost/ref.hpp:
 
-/usr/include/librealsense2/rs.h:
-
-/usr/include/x86_64-linux-gnu/bits/libc-header-start.h:
-
-/usr/include/x86_64-linux-gnu/bits/setjmp.h:
-
-/usr/include/boost/preprocessor/slot/detail/def.hpp:
-
-/usr/include/locale.h:
-
 /usr/include/eigen3/Eigen/src/plugins/CommonCwiseBinaryOps.h:
 
 /usr/include/boost/fusion/mpl/insert.hpp:
 
 /usr/include/x86_64-linux-gnu/bits/uintn-identity.h:
 
-/usr/include/x86_64-linux-gnu/bits/flt-eval-method.h:
+/usr/include/flann/util/heap.h:
 
-/usr/include/boost/preprocessor/comparison/less_equal.hpp:
+/usr/include/c++/11/bits/ptr_traits.h:
 
-/usr/include/librealsense2/rsutil.h:
+/usr/include/c++/11/bits/erase_if.h:
 
-/usr/include/boost/mpl/iterator_category.hpp:
+/usr/include/eigen3/Eigen/src/Core/PlainObjectBase.h:
 
-/usr/include/x86_64-linux-gnu/bits/types.h:
+/usr/include/eigen3/Eigen/src/Core/DiagonalProduct.h:
 
-/usr/include/eigen3/Eigen/src/Core/Redux.h:
+/usr/include/boost/mpl/aux_/iter_fold_if_impl.hpp:
 
-/usr/include/x86_64-linux-gnu/bits/stdint-intn.h:
+/usr/include/boost/mpl/aux_/arity.hpp:
 
-/usr/include/c++/11/bits/range_access.h:
+/usr/lib/gcc/x86_64-linux-gnu/11/include/vpclmulqdqintrin.h:
+
+/usr/include/x86_64-linux-gnu/bits/types/struct_timeval.h:
+
+/usr/include/x86_64-linux-gnu/asm/errno.h:
 
 /usr/include/boost/mpl/list/aux_/front.hpp:
 
@@ -4345,13 +4285,29 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 
 /usr/include/x86_64-linux-gnu/bits/types/__sigset_t.h:
 
-/usr/include/c++/11/bits/locale_facets.tcc:
-
-/usr/include/librealsense2/h/rs_device.h:
-
 /usr/include/libintl.h:
 
 /usr/include/x86_64-linux-gnu/bits/long-double.h:
+
+/usr/include/eigen3/Eigen/src/Householder/Householder.h:
+
+/usr/local/include/librealsense2/rsutil.h:
+
+/usr/include/boost/date_time/microsec_time_clock.hpp:
+
+/usr/lib/gcc/x86_64-linux-gnu/11/include/avx512ifmavlintrin.h:
+
+/usr/local/include/pcl-1.14/pcl/PCLHeader.h:
+
+/usr/include/boost/smart_ptr/detail/sp_thread_sleep.hpp:
+
+/usr/lib/gcc/x86_64-linux-gnu/11/include/avx2intrin.h:
+
+/usr/include/boost/type_traits/is_function.hpp:
+
+/usr/include/eigen3/Eigen/src/Eigenvalues/GeneralizedSelfAdjointEigenSolver.h:
+
+/usr/include/alloca.h:
 
 /usr/include/vtk-9.1/vtkGenericDataArray.h:
 
@@ -4365,31 +4321,23 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 
 /usr/include/eigen3/Eigen/Core:
 
+/usr/include/boost/mpl/aux_/find_if_pred.hpp:
+
+/usr/include/c++/11/bits/stl_construct.h:
+
 /usr/lib/gcc/x86_64-linux-gnu/11/include/stddef.h:
 
 /usr/include/boost/mpl/aux_/adl_barrier.hpp:
 
-/usr/include/boost/variant/variant.hpp:
+/usr/include/boost/mpl/iterator_category.hpp:
 
-/usr/include/boost/mpl/aux_/config/preprocessor.hpp:
+/usr/include/x86_64-linux-gnu/bits/types.h:
 
-/usr/include/c++/11/ext/numeric_traits.h:
+/usr/include/eigen3/Eigen/src/Core/Redux.h:
 
-/usr/include/boost/date_time/date_duration_types.hpp:
+/usr/include/x86_64-linux-gnu/bits/stdint-intn.h:
 
-/usr/include/boost/type_traits/has_plus.hpp:
-
-/usr/include/boost/mpl/aux_/nttp_decl.hpp:
-
-/usr/include/boost/type_traits/is_convertible.hpp:
-
-/usr/include/eigen3/Eigen/src/Eigenvalues/ComplexEigenSolver.h:
-
-/usr/include/c++/11/bits/atomic_base.h:
-
-../pose.h:
-
-/usr/include/features.h:
+/usr/include/c++/11/bits/range_access.h:
 
 /usr/include/boost/date_time/time_duration.hpp:
 
@@ -4403,18 +4351,6 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 
 /usr/include/boost/mpl/aux_/msvc_eti_base.hpp:
 
-/usr/include/x86_64-linux-gnu/bits/typesizes.h:
-
-/usr/include/boost/date_time/microsec_time_clock.hpp:
-
-/usr/lib/gcc/x86_64-linux-gnu/11/include/avx512ifmavlintrin.h:
-
-/usr/local/include/pcl-1.14/pcl/PCLHeader.h:
-
-/usr/include/eigen3/Eigen/src/Eigenvalues/GeneralizedSelfAdjointEigenSolver.h:
-
-/usr/include/alloca.h:
-
 /usr/include/c++/11/bits/functexcept.h:
 
 /usr/include/eigen3/Eigen/src/Core/SolveTriangular.h:
@@ -4423,7 +4359,79 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 
 /usr/include/x86_64-linux-gnu/sys/types.h:
 
+/usr/include/eigen3/Eigen/src/SVD/UpperBidiagonalization.h:
+
+/usr/include/eigen3/Eigen/src/Core/ProductEvaluators.h:
+
+/usr/lib/gcc/x86_64-linux-gnu/11/include/avx512vbmivlintrin.h:
+
+/usr/local/include/librealsense2/hpp/rs_types.hpp:
+
+/usr/include/boost/config/helper_macros.hpp:
+
+/usr/include/x86_64-linux-gnu/bits/typesizes.h:
+
+/usr/include/vtk-9.1/vtkPointSet.h:
+
+/usr/include/boost/bind/mem_fn_template.hpp:
+
+/usr/include/x86_64-linux-gnu/bits/time64.h:
+
+/usr/lib/gcc/x86_64-linux-gnu/11/include/mm_malloc.h:
+
+/usr/include/c++/11/ext/atomicity.h:
+
+/usr/include/c++/11/bits/stl_iterator.h:
+
+/usr/include/x86_64-linux-gnu/bits/stdint-uintn.h:
+
+/usr/include/boost/preprocessor/arithmetic/inc.hpp:
+
+/usr/include/boost/numeric/conversion/cast.hpp:
+
+/usr/include/boost/fusion/iterator/detail/segment_sequence.hpp:
+
 /usr/include/c++/11/bits/basic_string.h:
+
+/usr/include/eigen3/Eigen/Geometry:
+
+/usr/include/boost/mpl/aux_/front_impl.hpp:
+
+/usr/local/include/librealsense2/h/rs_device.h:
+
+/usr/include/boost/mpl/prior.hpp:
+
+/usr/include/boost/mpl/aux_/preprocessed/gcc/inherit.hpp:
+
+/usr/include/eigen3/Eigen/src/Core/MathFunctionsImpl.h:
+
+/usr/include/c++/11/bits/stl_multiset.h:
+
+/usr/include/x86_64-linux-gnu/gnu/stubs.h:
+
+/usr/include/x86_64-linux-gnu/bits/fp-fast.h:
+
+/usr/lib/gcc/x86_64-linux-gnu/11/include/xsavesintrin.h:
+
+/usr/include/c++/11/bits/node_handle.h:
+
+/usr/include/vtk-9.1/vtkDataObject.h:
+
+/usr/local/include/librealsense2/h/rs_types.h:
+
+/usr/include/eigen3/Eigen/src/Core/Swap.h:
+
+/usr/include/c++/11/bits/basic_ios.h:
+
+/usr/include/x86_64-linux-gnu/bits/types/cookie_io_functions_t.h:
+
+/usr/include/c++/11/bits/cxxabi_forced.h:
+
+/usr/lib/gcc/x86_64-linux-gnu/11/include/avx512vlbwintrin.h:
+
+/usr/include/boost/smart_ptr/detail/operator_bool.hpp:
+
+/usr/include/c++/11/cerrno:
 
 /usr/include/eigen3/Eigen/src/Householder/BlockHouseholder.h:
 
@@ -4443,6 +4451,8 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 
 /usr/include/c++/11/backward/binders.h:
 
+/usr/include/x86_64-linux-gnu/bits/types/struct_timespec.h:
+
 /usr/include/boost/signals2/trackable.hpp:
 
 /usr/include/boost/mem_fn.hpp:
@@ -4453,9 +4463,11 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 
 /usr/include/boost/mpl/aux_/push_front_impl.hpp:
 
-/usr/include/librealsense2/hpp/rs_context.hpp:
-
 /usr/include/eigen3/Eigen/src/Core/AssignEvaluator.h:
+
+/usr/lib/gcc/x86_64-linux-gnu/11/include/amxbf16intrin.h:
+
+/usr/local/include/librealsense2/hpp/rs_sensor.hpp:
 
 /usr/include/boost/mpl/pop_back.hpp:
 
@@ -4465,13 +4477,9 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 
 /usr/include/eigen3/Eigen/src/Core/Assign.h:
 
-/usr/local/include/pcl-1.14/pcl/pcl_base.h:
-
 /usr/include/boost/type_index.hpp:
 
 /usr/local/include/pcl-1.14/pcl/conversions.h:
-
-/usr/include/librealsense2/hpp/rs_sensor.hpp:
 
 /usr/include/x86_64-linux-gnu/bits/uio_lim.h:
 
@@ -4481,61 +4489,25 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 
 /usr/include/c++/11/string:
 
-/usr/include/boost/date_time/time_clock.hpp:
-
-/usr/include/boost/mpl/find.hpp:
-
-/usr/include/x86_64-linux-gnu/bits/types/struct_FILE.h:
-
-/usr/include/eigen3/Eigen/src/Jacobi/Jacobi.h:
-
-/usr/include/eigen3/Eigen/src/LU/PartialPivLU.h:
-
-/usr/include/boost/detail/select_type.hpp:
-
-/usr/include/boost/config/detail/select_compiler_config.hpp:
-
-/usr/include/vtk-9.1/vtkBoundingBox.h:
-
-/usr/include/boost/mpl/apply.hpp:
-
-/usr/include/boost/mpl/list/aux_/begin_end.hpp:
-
-/usr/include/c++/11/cstdlib:
-
-/usr/include/c++/11/string_view:
-
-/usr/include/eigen3/Eigen/src/Core/Replicate.h:
-
-/usr/include/boost/preprocessor/detail/auto_rec.hpp:
-
-/usr/include/x86_64-linux-gnu/bits/pthreadtypes-arch.h:
-
-/usr/include/boost/mpl/aux_/lambda_spec.hpp:
-
-/usr/include/boost/type_traits/is_complete.hpp:
-
-/usr/include/x86_64-linux-gnu/bits/libm-simd-decl-stubs.h:
-
 /usr/include/c++/11/bits/postypes.h:
 
 /usr/include/x86_64-linux-gnu/bits/struct_rwlock.h:
+
+/usr/local/include/pcl-1.14/pcl/pcl_base.h:
+
+/usr/include/x86_64-linux-gnu/bits/libc-header-start.h:
+
+/usr/include/x86_64-linux-gnu/bits/setjmp.h:
+
+/usr/include/boost/preprocessor/slot/detail/def.hpp:
+
+/usr/include/locale.h:
 
 /usr/include/x86_64-linux-gnu/bits/types/mbstate_t.h:
 
 /usr/include/vtk-9.1/vtkVersionMacros.h:
 
 /usr/include/boost/type_traits/conditional.hpp:
-
-/usr/include/c++/11/bits/stl_multiset.h:
-
-/usr/include/x86_64-linux-gnu/gnu/stubs.h:
-
-/usr/include/x86_64-linux-gnu/bits/fp-fast.h:
-
-/usr/lib/gcc/x86_64-linux-gnu/11/include/xsavesintrin.h:
-
-/usr/include/c++/11/bits/node_handle.h:
 
 /usr/include/c++/11/cstring:
 
@@ -4562,22 +4534,6 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 /usr/include/c++/11/bits/streambuf.tcc:
 
 /usr/include/boost/mpl/O1_size.hpp:
-
-/usr/include/x86_64-linux-gnu/c++/11/bits/c++locale.h:
-
-/usr/include/linux/errno.h:
-
-/usr/lib/gcc/x86_64-linux-gnu/11/include/bmi2intrin.h:
-
-/usr/local/include/pcl-1.14/pcl/PCLPointField.h:
-
-/usr/include/vtk-9.1/vtkObject.h:
-
-/usr/include/boost/fusion/support/is_iterator.hpp:
-
-/usr/include/boost/mpl/aux_/preprocessed/gcc/quote.hpp:
-
-/usr/include/boost/fusion/iterator/detail/distance.hpp:
 
 /usr/include/c++/11/bits/istream.tcc:
 
@@ -4640,12 +4596,6 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 /usr/include/c++/11/initializer_list:
 
 /usr/include/x86_64-linux-gnu/c++/11/bits/gthr.h:
-
-/usr/include/c++/11/bits/cxxabi_forced.h:
-
-/usr/lib/gcc/x86_64-linux-gnu/11/include/avx512vlbwintrin.h:
-
-/usr/include/x86_64-linux-gnu/bits/types/cookie_io_functions_t.h:
 
 /usr/include/x86_64-linux-gnu/bits/timesize.h:
 
@@ -4727,7 +4677,51 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 
 /usr/include/x86_64-linux-gnu/c++/11/bits/atomic_word.h:
 
+/usr/local/include/librealsense2/hpp/rs_context.hpp:
+
+/usr/include/eigen3/Eigen/src/Core/products/TriangularSolverMatrix.h:
+
+/usr/include/boost/mpl/aux_/config/msvc.hpp:
+
 /usr/include/errno.h:
+
+/usr/include/boost/date_time/time_clock.hpp:
+
+/usr/include/boost/mpl/find.hpp:
+
+/usr/include/x86_64-linux-gnu/bits/types/struct_FILE.h:
+
+/usr/include/eigen3/Eigen/src/Jacobi/Jacobi.h:
+
+/usr/include/eigen3/Eigen/src/LU/PartialPivLU.h:
+
+/usr/include/boost/detail/select_type.hpp:
+
+/usr/include/boost/config/detail/select_compiler_config.hpp:
+
+/usr/include/vtk-9.1/vtkBoundingBox.h:
+
+/usr/include/boost/mpl/apply.hpp:
+
+/usr/include/x86_64-linux-gnu/bits/libm-simd-decl-stubs.h:
+
+/usr/include/boost/mpl/list/aux_/begin_end.hpp:
+
+/usr/include/c++/11/cstdlib:
+
+/usr/include/c++/11/string_view:
+
+/usr/include/eigen3/Eigen/src/Core/Replicate.h:
+
+/usr/include/boost/preprocessor/detail/auto_rec.hpp:
+
+/usr/include/x86_64-linux-gnu/bits/pthreadtypes-arch.h:
+
+/usr/include/boost/mpl/aux_/lambda_spec.hpp:
+
+/usr/include/boost/type_traits/is_complete.hpp:
+
+/usr/local/include/librealsense2/h/rs_record_playback.h:
 
 /usr/include/c++/11/bits/functional_hash.h:
 
@@ -4742,14 +4736,6 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 /usr/include/boost/numeric/conversion/detail/udt_builtin_mixture.hpp:
 
 /usr/include/boost/fusion/sequence/intrinsic/detail/segmented_end_impl.hpp:
-
-/usr/include/eigen3/Eigen/src/Core/Swap.h:
-
-/usr/include/c++/11/bits/basic_ios.h:
-
-/usr/include/boost/smart_ptr/detail/operator_bool.hpp:
-
-/usr/include/c++/11/cerrno:
 
 /usr/include/boost/mpl/list/aux_/pop_front.hpp:
 
@@ -4784,6 +4770,16 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 /usr/include/boost/mpl/aux_/size_impl.hpp:
 
 /usr/include/c++/11/bits/stl_uninitialized.h:
+
+/usr/include/c++/11/cstddef:
+
+/usr/local/include/librealsense2/h/rs_context.h:
+
+/usr/include/boost/mpl/aux_/filter_iter.hpp:
+
+/usr/include/c++/11/bits/stl_vector.h:
+
+/usr/lib/gcc/x86_64-linux-gnu/11/include/cetintrin.h:
 
 /usr/include/c++/11/tr1/ell_integral.tcc:
 
@@ -4839,9 +4835,9 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 
 /usr/include/limits.h:
 
-/usr/lib/gcc/x86_64-linux-gnu/11/include/hresetintrin.h:
-
 /usr/include/boost/type_traits/remove_cv.hpp:
+
+/usr/lib/gcc/x86_64-linux-gnu/11/include/hresetintrin.h:
 
 /usr/include/boost/mpl/aux_/config/has_apply.hpp:
 
@@ -4852,8 +4848,6 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 /usr/include/boost/filesystem/string_file.hpp:
 
 /usr/local/include/pcl-1.14/pcl/PointIndices.h:
-
-/usr/include/librealsense2/h/rs_option.h:
 
 /usr/include/eigen3/Eigen/src/plugins/ArrayCwiseBinaryOps.h:
 
@@ -4889,19 +4883,7 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 
 /usr/include/boost/mpl/aux_/largest_int.hpp:
 
-/usr/include/boost/smart_ptr/detail/sp_thread_sleep.hpp:
-
-/usr/include/boost/type_traits/is_function.hpp:
-
-/usr/lib/gcc/x86_64-linux-gnu/11/include/avx2intrin.h:
-
-/usr/include/flann/util/heap.h:
-
-/usr/include/c++/11/bits/ptr_traits.h:
-
-/usr/include/c++/11/bits/stl_construct.h:
-
-/usr/include/boost/mpl/aux_/find_if_pred.hpp:
+/usr/local/include/librealsense2/hpp/rs_options.hpp:
 
 /usr/include/c++/11/pstl/execution_defs.h:
 
@@ -4942,6 +4924,10 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 /usr/include/eigen3/Eigen/src/misc/Kernel.h:
 
 /usr/include/boost/fusion/adapted/mpl/detail/begin_impl.hpp:
+
+/usr/include/boost/interprocess/detail/std_fwd.hpp:
+
+/usr/include/eigen3/Eigen/src/misc/Image.h:
 
 /usr/include/eigen3/Eigen/src/LU/arch/InverseSize4.h:
 
@@ -5021,10 +5007,6 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 
 /usr/include/boost/mpl/aux_/config/adl.hpp:
 
-/usr/include/eigen3/Eigen/src/Core/products/TriangularSolverMatrix.h:
-
-/usr/include/boost/mpl/aux_/config/msvc.hpp:
-
 /usr/include/boost/config.hpp:
 
 /usr/include/boost/iterator/detail/config_def.hpp:
@@ -5065,8 +5047,6 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 
 /usr/include/x86_64-linux-gnu/bits/confname.h:
 
-/usr/include/librealsense2/h/rs_sensor.h:
-
 /usr/include/x86_64-linux-gnu/bits/getopt_posix.h:
 
 /usr/include/x86_64-linux-gnu/bits/unistd_ext.h:
@@ -5088,8 +5068,6 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 /usr/include/boost/fusion/sequence/intrinsic/empty.hpp:
 
 /usr/include/boost/config/detail/suffix.hpp:
-
-/usr/include/boost/config/helper_macros.hpp:
 
 /usr/include/boost/numeric/conversion/bounds.hpp:
 
@@ -5182,8 +5160,6 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 /usr/include/boost/preprocessor/logical/bool.hpp:
 
 /usr/include/boost/mpl/integral_c_fwd.hpp:
-
-/usr/include/boost/preprocessor/repeat.hpp:
 
 /usr/include/c++/11/mutex:
 
@@ -5531,9 +5507,9 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 
 /usr/include/boost/preprocessor/repetition/detail/for.hpp:
 
-/usr/include/c++/11/ext/string_conversions.h:
-
 /usr/include/boost/preprocessor/list/detail/fold_right.hpp:
+
+/usr/include/c++/11/ext/string_conversions.h:
 
 /usr/include/boost/preprocessor/seq/detail/is_empty.hpp:
 
@@ -5550,6 +5526,8 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 /usr/include/boost/date_time/time_resolution_traits.hpp:
 
 /usr/include/eigen3/Eigen/src/Eigenvalues/RealQZ.h:
+
+/usr/local/include/librealsense2/rs.hpp:
 
 /usr/include/boost/mpl/sequence_tag.hpp:
 
@@ -5651,6 +5629,16 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 
 /usr/include/boost/mpl/aux_/msvc_type.hpp:
 
+/usr/include/c++/11/bits/list.tcc:
+
+/usr/include/vtk-9.1/vtkFloatArray.h:
+
+/usr/include/vtk-9.1/vtkVersion.h:
+
+/usr/include/boost/fusion/mpl/insert_range.hpp:
+
+/usr/include/boost/mpl/logical.hpp:
+
 /usr/include/boost/mpl/or.hpp:
 
 /usr/include/asm-generic/bitsperlong.h:
@@ -5711,6 +5699,8 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 
 /usr/include/c++/11/bits/stl_map.h:
 
+/usr/include/c++/11/bits/stl_multimap.h:
+
 /usr/include/eigen3/Eigen/src/Geometry/Hyperplane.h:
 
 /usr/include/boost/preprocessor/tuple/elem.hpp:
@@ -5744,6 +5734,10 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 /usr/include/boost/signals2/detail/signals_common_macros.hpp:
 
 /usr/include/boost/core/enable_if.hpp:
+
+/usr/include/eigen3/Eigen/src/Core/DiagonalMatrix.h:
+
+/usr/include/boost/fusion/support/detail/is_native_fusion_sequence.hpp:
 
 /usr/include/boost/preprocessor/seq/enum.hpp:
 
@@ -5799,6 +5793,12 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 
 /usr/include/boost/type_traits/is_abstract.hpp:
 
+/usr/include/vtk-9.1/vtkObject.h:
+
+/usr/include/boost/mpl/aux_/preprocessed/gcc/quote.hpp:
+
+/usr/include/boost/fusion/support/is_iterator.hpp:
+
 /usr/include/dirent.h:
 
 /usr/include/boost/type_traits/is_base_of.hpp:
@@ -5822,6 +5822,8 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 /usr/include/boost/mpl/distance.hpp:
 
 /usr/include/boost/mpl/aux_/iter_fold_impl.hpp:
+
+/usr/local/include/librealsense2/h/rs_processing.h:
 
 /usr/include/eigen3/Eigen/src/Core/arch/Default/BFloat16.h:
 
@@ -5881,10 +5883,6 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 
 /usr/include/boost/fusion/sequence/intrinsic/value_at.hpp:
 
-/usr/include/boost/filesystem/exception.hpp:
-
-/usr/include/boost/mpl/empty_base.hpp:
-
 /usr/include/eigen3/Eigen/src/Cholesky/LDLT.h:
 
 /usr/include/boost/fusion/mpl/back.hpp:
@@ -5899,9 +5897,11 @@ CMakeFiles/pose.dir/pose.cpp.o: ../pose.cpp \
 
 /usr/include/boost/fusion/container/list/cons_fwd.hpp:
 
-/usr/include/c++/11/bits/stl_iterator_base_funcs.h:
+/usr/include/boost/fusion/iterator/segmented_iterator.hpp:
 
 /usr/include/boost/mpl/contains_fwd.hpp:
+
+/usr/include/c++/11/bits/stl_iterator_base_funcs.h:
 
 /usr/include/boost/fusion/iterator/detail/segmented_iterator.hpp:
 

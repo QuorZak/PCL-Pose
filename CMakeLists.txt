@@ -22,9 +22,10 @@ include_directories(SYSTEM ${HDF5_INCLUDE_DIR})
 find_package(FLANN)
 include_directories(${FLANN_INCLUDE_DIRS})
 
+# Main executable
 add_executable(pose pose.cpp)
+target_link_libraries(pose ${PCL_LIBRARIES} realsense2 ${OpenCV_LIBS} ${FLANN_LIBRARIES} ${HDF5_LIBRARIES} ${Boost_LIBRARIES})
 
-# Link libraries
-target_link_libraries(pose ${realsense2_LIBRARIES} ${PCL_LIBRARIES} 
-                         ${OpenCV_LIBS} ${FLANN_LIBRARIES} ${HDF5_LIBRARIES} ${Boost_LIBRARIES})
-
+# Tests executable
+add_executable(tests tests.cpp)
+target_link_libraries(tests ${PCL_LIBRARIES} realsense2 ${OpenCV_LIBS} ${FLANN_LIBRARIES} ${HDF5_LIBRARIES} ${Boost_LIBRARIES})

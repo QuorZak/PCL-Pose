@@ -1,4 +1,6 @@
+#pragma once
 #include <librealsense2/rs.hpp>
+
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 #include <pcl/common/common.h>
@@ -9,10 +11,12 @@
 #include <pcl/visualization/pcl_visualizer.h>
 #include <pcl/features/vfh.h>
 #include <pcl/features/normal_3d.h>
+#include <pcl/filters/passthrough.h>
+#include <pcl/filters/statistical_outlier_removal.h>
+
 #include <boost/filesystem.hpp>
 #include <flann/flann.h>
 #include <flann/io/hdf5.h>
-#include <fstream>
 #include <iostream>
 
 // Define vfh_model type for storing data file name and histogram data
@@ -21,7 +25,7 @@ typedef std::pair<std::string, std::vector<float> > vfh_model;
 // This function estimates VFH signatures of an input point cloud 
 // Input: File path
 // Output: VFH signature of the object
-void estimate_VFH(pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud, pcl::PointCloud <pcl::VFHSignature308> &signature)
+inline void estimate_VFH(const pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud, pcl::PointCloud <pcl::VFHSignature308> &signature)
 {
   pcl::PointCloud<pcl::Normal>::Ptr normals (new pcl::PointCloud<pcl::Normal> ());
   
@@ -45,13 +49,11 @@ void estimate_VFH(pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud, pcl::PointCloud <p
 // This function checks if the file already contains a VFH signature
 // Input: File path
 // Output: true if file contains VFH signature, false if file does not contain VFH signature
-bool checkVFH(const boost::filesystem::path &path)
+inline bool checkVFH(const boost::filesystem::path &path)
 {
-  int vfh_idx;
-
-  try
+    try
   {
-	// Read point cloud header
+    // Read point cloud header
     pcl::PCLPointCloud2 cloud;
     int version;
     Eigen::Vector4f origin;
@@ -61,10 +63,9 @@ bool checkVFH(const boost::filesystem::path &path)
     r.readHeader (path.string (), cloud, origin, orientation, version, type, idx);
 
 	// Check if there is VFH field in the cloud header
-    vfh_idx = pcl::getFieldIndex (cloud, "vfh");
-    if (vfh_idx == -1)
+    if (const int vfh_idx = pcl::getFieldIndex(cloud, "vfh"); vfh_idx == -1)
       return (false);
-    if ((int)cloud.width * cloud.height != 1)
+    if (static_cast<int>(cloud.width) * cloud.height != 1)
       return (false);
   }
   catch (const pcl::InvalidConversionException&)
@@ -77,7 +78,7 @@ bool checkVFH(const boost::filesystem::path &path)
 // This function loads VFH signature histogram into a vfh model
 // Input: File path
 // Output: A boolean that returns true if the histogram is loaded successfully and a vfh_model data that holds the histogram information
-bool loadHist (const boost::filesystem::path &path, vfh_model &vfh)
+inline bool loadHist (const boost::filesystem::path &path, vfh_model &vfh)
 {
   int vfh_idx;
   // Read file header to check if the file contains VFH signature
@@ -96,7 +97,7 @@ bool loadHist (const boost::filesystem::path &path, vfh_model &vfh)
     {
       return (false);
     }
-    if ((int)cloud.width * cloud.height != 1)
+    if (static_cast<int>(cloud.width) * cloud.height != 1)
       return (false);
   }
   catch (const pcl::InvalidConversionException&)
@@ -126,14 +127,14 @@ bool loadHist (const boost::filesystem::path &path, vfh_model &vfh)
 // then pushes the results into a vfh_model vector to keep them in a data storage
 // Input: Training data set file path
 // Output: A vfh_model vector that contains all VFH signature information
-void loadData(const boost::filesystem::path &base_dir, std::vector<vfh_model> &models)
+inline void loadData(const boost::filesystem::path &base_dir, std::vector<vfh_model> &models)
 {
   if (!boost::filesystem::exists (base_dir) && !boost::filesystem::is_directory (base_dir))
     return;
   else
   {
 	// Iterate through the data set directory to read VFH signatures
-  	for (boost::filesystem::directory_iterator i (base_dir); i != boost::filesystem::directory_iterator (); i++)
+  	for (boost::filesystem::directory_iterator i (base_dir); i != boost::filesystem::directory_iterator (); ++i)
 	{
 	  // If read path is a directory, then print path name on console and call data loader again
 	  if (boost::filesystem::is_directory (i->status ()))
@@ -161,7 +162,7 @@ void loadData(const boost::filesystem::path &base_dir, std::vector<vfh_model> &m
 }
 
 // A small helper to replace a deprecated Boost Function
-void replace_last(std::string& str, const std::string& from, const std::string& to) {
+inline void replace_last(std::string& str, const std::string& from, const std::string& to) {
     std::size_t pos = str.rfind(from);
     if (pos != std::string::npos) {
         str.replace(pos, from.length(), to);
@@ -173,14 +174,14 @@ void replace_last(std::string& str, const std::string& from, const std::string& 
 // If the distance is smaller than a given threshold then the distances are shown in green, else they are shown in red
 // Inputs: Main function arguments, candidate count (k), threshold value, vfh_model vector that contains VFH signatures 
 // from the data set, indices of candidates and distances of candidates
-void visualize(int argc, char** argv, int k, double thresh, std::vector<vfh_model> models, flann::Matrix<int> k_indices, flann::Matrix<float> k_distances)
+inline void visualize(int argc, char** argv, int k, double thresh, std::vector<vfh_model> models, flann::Matrix<int> k_indices, flann::Matrix<float> k_distances)
 {
   // Load the results
   pcl::visualization::PCLVisualizer p (argc, argv, "VFH Cluster Classifier");
-  int y_s = (int)floor (sqrt ((double)k));
-  int x_s = y_s + (int)ceil ((k / (double)y_s) - y_s);
-  double x_step = (double)(1 / (double)x_s);
-  double y_step = (double)(1 / (double)y_s);
+  int y_s = static_cast<int>(floor(sqrt(static_cast<double>(k))));
+  int x_s = y_s + static_cast<int>(ceil((k / static_cast<double>(y_s)) - y_s));
+  auto x_step = 1 / static_cast<double>(x_s);
+  auto y_step = 1 / static_cast<double>(y_s);
   pcl::console::print_highlight ("Preparing to load "); 
   pcl::console::print_value ("%d", k); 
   pcl::console::print_info (" files ("); 
@@ -216,11 +217,11 @@ void visualize(int argc, char** argv, int k, double thresh, std::vector<vfh_mode
     pcl::PointCloud<pcl::PointXYZ> cloud_xyz;
     pcl::fromPCLPointCloud2 (cloud, cloud_xyz);
 
-    if (cloud_xyz.points.size () == 0)
+    if (cloud_xyz.points.empty())
       break;
 
     pcl::console::print_info ("[done, "); 
-    pcl::console::print_value ("%d", (int)cloud_xyz.points.size ()); 
+    pcl::console::print_value ("%d", static_cast<int>(cloud_xyz.points.size()));
     pcl::console::print_info (" points]\n");
     pcl::console::print_info ("Available dimensions: "); 
     pcl::console::print_value ("%s\n", pcl::getFieldsList (cloud).c_str ());
@@ -266,8 +267,8 @@ void visualize(int argc, char** argv, int k, double thresh, std::vector<vfh_mode
 // This function finds the k nearest neighbors of the query object and returns their indices in the K-d tree and distances from the query object
 // Inputs: K-d tree, query object model, desired candidate count (k)
 // Outputs: K-d tree indices of candidates, Distances of candidates from the query object
-inline void nearestKSearch (flann::Index<flann::ChiSquareDistance<float> > &index, const vfh_model &model, 
-                int k, flann::Matrix<int> &indices, flann::Matrix<float> &distances)
+inline void nearestKSearch (const flann::Index<flann::ChiSquareDistance<float> > &index, const vfh_model &model,
+                            int k, flann::Matrix<int> &indices, flann::Matrix<float> &distances)
 {
   // Query point
   flann::Matrix<float> p = flann::Matrix<float>(new float[model.second.size ()], 1, model.second.size ());
