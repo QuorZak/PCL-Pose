@@ -10,9 +10,9 @@
 #include <pcl/point_types.h>
 #include <pcl/console/print.h>
 
-void showPCDfile(const int usePclViewer = 0) { // The file saved from main is "capture.pcd"
+void showPdcFile(const int usePclViewer = 0) { // The file saved from main is "capture.pcd"
   if (usePclViewer == 1) {
-    const std::string command = "pcl_viewer -multiview 1 ../output/capture.pcd";
+    const std::string command = "pcl_viewer -multiview 1 ../output/capture_vfh.pcd";
     if (const int result = std::system(command.c_str()); result != 0) {
       std::cerr << "Failed to execute pcl_viewer command" << std::endl;
     }
@@ -48,6 +48,6 @@ void showPCDfile(const int usePclViewer = 0) { // The file saved from main is "c
 
 int main() {
   // Uncomment the function calls to run them
-  showPCDfile(1);
+  showPdcFile(1);
   return 0;
 }

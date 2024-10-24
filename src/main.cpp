@@ -29,7 +29,7 @@ int main(int argc, char** argv) {
         // Start the Realsense camera
         rs2::config config;
         rs2::frameset frames;
-        rs2::threshold_filter threshold_filter(0.2f, 0.8f);
+        rs2::threshold_filter threshold_filter(0.4f, 0.8f);
         config.enable_stream(RS2_STREAM_DEPTH, 640, 480, RS2_FORMAT_Z16, 15);
         pipeline.start(config);
         std::cout << "Camera initialised successfully." << std::endl;
@@ -125,7 +125,7 @@ int main(int argc, char** argv) {
         pcl::console::print_info("    %d - %s (%d) with a distance of: %f\n",
                                  i, models.at(k_indices[0][i]).first.c_str(), k_indices[0][i], k_distances[0][i]);
 
-    // Visualize closest candidates on the screen
+    // Visualize the closest candidates on the screen
     visualize(argc, argv, k, thresh, models, k_indices, k_distances);
 
     return 0;
