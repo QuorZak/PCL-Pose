@@ -123,7 +123,13 @@ main ()
   ec.setInputCloud (cloud_filtered);
   ec.extract (cluster_indices);
 
-  int j = 0;
+  // Clear out all the files in the output folder from the previous run
+  const std::string clear_command = "rm -f " + output_folder + "cloud_cluster_*.pcd";
+  if (const int result = std::system(clear_command.c_str()); result != 0) {
+    std::cerr << "Failed to execute rm command" << std::endl;
+  } else {
+    std::cout << "Cleared out all the files in the output folder" << std::endl;
+  }
 
   // If no clusters are found, output a message
   if (cluster_indices.empty())
@@ -131,7 +137,7 @@ main ()
     std::cout << "No clusters found." << std::endl;
     return (0);
   }
-
+  int j = 0;
   for (const auto& cluster : cluster_indices)
   {
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cluster (new pcl::PointCloud<pcl::PointXYZ>);
@@ -147,6 +153,11 @@ main ()
     ss << std::setw(4) << std::setfill('0') << j;
     writer.write<pcl::PointXYZ> (output_folder + "cloud_cluster_" + ss.str () + ".pcd", *cloud_cluster, false);
     j++;
+  }
+
+  const std::string show_command = "pcl_viewer ../lab_data/cloud_cluster_*.pcd";
+  if (const int result = std::system(show_command.c_str()); result != 0) {
+    std::cerr << "Failed to execute pcl_viewer command" << std::endl;
   }
 
   return (0);

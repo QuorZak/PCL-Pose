@@ -24,7 +24,7 @@ void showPdcFile(const int usePclViewer = 0) { // The file saved from main is ".
   // if usePclViewer == 2, then run a command like this ./pcl_viewer cloud_cluster_0000.pcd cloud_cluster_0001.pcd cloud_cluster_0002.pcd cloud_cluster_0003.pcd cloud_cluster_0004.pcd
   // Set up the function to open all the files in the directory that follow the naming convention cloud_cluster_0000.pcd, cloud_cluster_0001.pcd, etc.
   if (usePclViewer == 2) {
-    const std::string command = "pcl_viewer ../lab_data/cloud_cluster_*.pcd";
+    const std::string command = "pcl_viewer ../data/901.125.07/*.pcd";
     if (const int result = std::system(command.c_str()); result != 0) {
       std::cerr << "Failed to execute pcl_viewer command" << std::endl;
     }
@@ -127,7 +127,7 @@ int main() {
   showPdcFile(2);
 
   // Just stream the depth map heat map type image from Realsense through OpenCV
-  // streamDepthMap();
+  //streamDepthMap();
 
   return 0;
 }

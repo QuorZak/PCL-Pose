@@ -29,18 +29,16 @@ typedef std::pair<std::string, std::vector<float> > vfh_model;
 inline void streamDepthMap(rs2::pipeline pipe, rs2::config cfg, cv::Mat &output_depth_map, std::mutex &mtx, std::condition_variable &cv, bool &ready) {
     // Create a threshold filter
     rs2::threshold_filter threshold_filter;
-    threshold_filter.set_option(RS2_OPTION_MIN_DISTANCE, 0.2f);
-    threshold_filter.set_option(RS2_OPTION_MAX_DISTANCE, 1.2f);
+    threshold_filter.set_option(RS2_OPTION_MIN_DISTANCE, 0.5f);
+    threshold_filter.set_option(RS2_OPTION_MAX_DISTANCE, 0.9f);
 
 
     // We will want to crop the image to focus only on the center of the image (50% in x and y)
-    // And also slightly lower in the y direction (10%)
     constexpr int overall_reduction_percentage = 40;
-    constexpr int y_downshift_percentage = 10;
 
     // Implement the percentages
     constexpr int x_offset = 640 * overall_reduction_percentage / 100 / 2;
-    constexpr int y_offset = 480 * overall_reduction_percentage / 100 / 2 + 480 * y_downshift_percentage / 100;
+    constexpr int y_offset = 480 * overall_reduction_percentage / 100 / 2;
     constexpr int crop_width = 640 * overall_reduction_percentage / 100;
     constexpr int crop_height = 480 * overall_reduction_percentage / 100;
 
