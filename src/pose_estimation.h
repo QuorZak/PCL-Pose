@@ -17,9 +17,84 @@
 #include <flann/io/hdf5.h>
 #include <iostream>
 #include <thread>
+#include <mutex>
+#include <condition_variable>
+
+#include <opencv2/opencv.hpp>
 
 // Define vfh_model type for storing data file name and histogram data
 typedef std::pair<std::string, std::vector<float> > vfh_model;
+
+// This function streams the depth map from the Realsense camera through OpenCV
+inline void streamDepthMap(rs2::pipeline pipe, rs2::config cfg, cv::Mat &output_depth_map, std::mutex &mtx, std::condition_variable &cv, bool &ready) {
+    // Create a threshold filter
+    rs2::threshold_filter threshold_filter;
+    threshold_filter.set_option(RS2_OPTION_MIN_DISTANCE, 0.2f);
+    threshold_filter.set_option(RS2_OPTION_MAX_DISTANCE, 1.2f);
+
+
+    // We will want to crop the image to focus only on the center of the image (50% in x and y)
+    // And also slightly lower in the y direction (10%)
+    constexpr int overall_reduction_percentage = 40;
+    constexpr int y_downshift_percentage = 10;
+
+    // Implement the percentages
+    constexpr int x_offset = 640 * overall_reduction_percentage / 100 / 2;
+    constexpr int y_offset = 480 * overall_reduction_percentage / 100 / 2 + 480 * y_downshift_percentage / 100;
+    constexpr int crop_width = 640 * overall_reduction_percentage / 100;
+    constexpr int crop_height = 480 * overall_reduction_percentage / 100;
+
+    // Add a stream with its parameters
+    cfg.enable_stream(RS2_STREAM_DEPTH, 640, 480, RS2_FORMAT_Z16, 15);
+
+    // Instruct pipeline to start streaming with the requested configuration
+    pipe.start(cfg);
+
+    // Camera warmup - dropping several first frames to let auto-exposure stabilize
+    for (int i = 0; i < 100; i++) {
+        // Wait for all configured streams to produce a frame
+        auto frames = pipe.wait_for_frames(); // purposely does nothing with the frames
+    }
+
+    while (true) {
+        // Wait for the next set of frames from the camera
+        auto frames = pipe.wait_for_frames();
+
+        // Get a frame from the depth stream
+        auto depth = frames.get_depth_frame();
+        // filter the depth frame
+        depth = threshold_filter.process(depth);
+
+        // Create OpenCV matrix of size (w,h) from the depth frame
+        cv::Mat depth_image(cv::Size(640, 480), CV_16UC1, const_cast<void*>(depth.get_data()), cv::Mat::AUTO_STEP);
+        cv::Mat cropped_depth_image = depth_image(cv::Rect(x_offset, y_offset, crop_width, crop_height));
+
+        // Convert the depth image to CV_8UC1
+        cv::Mat depth_image_8u;
+        cropped_depth_image.convertTo(depth_image_8u, CV_8UC1, 255.0 / 10000); // Scale the depth values to 8-bit
+
+        // Apply colormap on depth image
+        cv::Mat depth_colormap;
+        cv::applyColorMap(depth_image_8u, depth_colormap, cv::COLORMAP_JET);
+
+        // Lock the mutex and update the shared output_depth_map
+        {
+            std::lock_guard<std::mutex> lock(mtx);
+            output_depth_map = depth_colormap.clone();
+            ready = true;
+        }
+        cv.notify_one();
+
+        // Display the depth map
+        cv::imshow("Depth Map Stream", depth_colormap);
+        if (cv::waitKey(1) >= 0) {
+            break;
+        }
+    }
+    // Stop the pipeline
+    pipe.stop();
+    cv::destroyAllWindows();
+}
 
 // This function estimates VFH signatures of an input point cloud 
 // Input: File path

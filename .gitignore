@@ -3,8 +3,8 @@
 gitpo.txt
 
 # Compiled source #
-build/
-cmake-build-debug/
+/build/
+/cmake-build-debug/
 
 # Logs and databases
 *.log
@@ -17,8 +17,10 @@ Icon?
 Thumbs.db
 
 # .idea
-.idea/
+/.idea/
 
 # PCL Demo
-PCL_Official_VFH_Demo
+/PCL_Official_VFH_Demo/
 
+# Lab data - For now it changes too often
+/lab_data/

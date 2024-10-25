@@ -25,56 +25,43 @@ int main(int argc, char** argv) {
     rs2::pointcloud rs_cloud;
     rs2::points points;
 
-    try {
-        // Start the Realsense camera
-        rs2::config config;
-        rs2::frameset frames;
-        rs2::threshold_filter threshold_filter(0.4f, 0.8f);
-        config.enable_stream(RS2_STREAM_DEPTH, 640, 480, RS2_FORMAT_Z16, 15);
-        pipeline.start(config);
-        std::cout << "Camera initialised successfully." << std::endl;
-        // Camera warmup - dropping several first frames to let auto-exposure stabilize
-        for (int i = 0; i < 100; i++) {
-            // Wait for all configured streams to produce a frame
-            frames = pipeline.wait_for_frames(); // purposely does nothing with the frames
-        }
-        // Capture a depth frame from the Realsense camera
-        frames = pipeline.wait_for_frames();
-        depth = frames.get_depth_frame();
-        depth = threshold_filter.process(depth);
-        if (!depth) {
-            std::cerr << "No frames received." << std::endl;
-            return -1;
-        }
-    } catch (const rs2::error& e) {
-        std::cerr << "RealSense error: " << e.what() << std::endl;
-        return -1;
+    rs2::pipeline pipe;
+    rs2::config cfg;
+    cv::Mat output_depth_map;
+    cv::Mat depth_map;
+    std::mutex mtx;
+    std::condition_variable condition_var;
+    bool ready = false;
+
+    // Start the streamDepthMap function in a separate thread
+    std::thread img_thread(streamDepthMap, std::ref(pipe),std::ref(cfg),
+        std::ref(output_depth_map), std::ref(mtx), std::ref(condition_var), std::ref(ready));
+
+    // Wait for the first available output_depth_map
+    {
+        std::unique_lock<std::mutex> lock(mtx);
+        condition_var.wait(lock, [&ready] { return ready; });
     }
-    pipeline.stop();
+    // Copy the output_depth_map to depth_map so that we can use it in the rest of the program
+    depth_map = output_depth_map.clone();
 
-    // Generate the point cloud from the depth frame
-    points = rs_cloud.calculate(depth);
-
-    // Convert to PCL format
+    // Convert the depth frame to a PCL point cloud
     pcl::PointCloud<pcl::PointXYZ>::Ptr pcl_cloud(new pcl::PointCloud<pcl::PointXYZ>);
-    auto vertices = points.get_vertices(); // Extract the 3D vertices
-
-    pcl_cloud->width = points.size();
-    pcl_cloud->height = 1; // Unordered point cloud
-    pcl_cloud->is_dense = false;
-    pcl_cloud->points.resize(points.size());
-
-    for (size_t i = 0; i < points.size(); ++i) {
-        if (vertices[i].z) { // Check if the point is valid
-        pcl_cloud->points[i].x = vertices[i].x;
-        pcl_cloud->points[i].y = vertices[i].y;
-        pcl_cloud->points[i].z = vertices[i].z;
-        } else {
-            pcl_cloud->points[i].x = std::numeric_limits<float>::quiet_NaN();
-            pcl_cloud->points[i].y = std::numeric_limits<float>::quiet_NaN();
-            pcl_cloud->points[i].z = std::numeric_limits<float>::quiet_NaN();
+    for (int y = 0; y < depth_map.rows; ++y) {
+        for (int x = 0; x < depth_map.cols; ++x) {
+            if (uint16_t depth_value = depth_map.at<uint16_t>(y, x); depth_value > 0) {
+                pcl::PointXYZ point;
+                point.x = static_cast<float>(x);
+                point.y = static_cast<float>(y);
+                point.z = static_cast<float>(depth_value) * 0.001f; // Convert from mm to meters
+                pcl_cloud->points.push_back(point);
+            }
         }
     }
+    pcl_cloud->width = static_cast<uint32_t>(pcl_cloud->points.size());
+    pcl_cloud->height = 1;
+    pcl_cloud->is_dense = false;
+    pcl_cloud->sensor_origin_.setZero();
 
     // Save the point cloud to a PCD file
     if (pcl_cloud->points.empty()) {
@@ -106,7 +93,8 @@ int main(int argc, char** argv) {
     loadData(model_directory, models);
 
     // Convert data into FLANN format
-    flann::Matrix<float> data(new float[models.size() * models[0].second.size()], models.size(), models[0].second.size());
+    flann::Matrix<float> data(new float[models.size() * models[0].second.size()],
+        models.size(), models[0].second.size());
 
     for (size_t i = 0; i < data.rows; ++i)
         for (size_t j = 0; j < data.cols; ++j)
