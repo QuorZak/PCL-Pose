@@ -10,63 +10,73 @@
 #include <pcl/segmentation/extract_clusters.h>
 #include <iomanip> // for setw, setfill
 
-#include <pose_estimation.h>
+# include <librealsense2/rs.hpp> // Include RealSense Cross Platform API
 
-int
-main ()
-{
-  const std::string output_folder = "../lab_data/";
+int main () {
+  const std::string output_folder = "../lab_data/test/";
+  const std::string test_name = "test";
 
-  rs2::pipeline pipeline;
-  rs2::frame depth;
-  rs2::pointcloud rs_cloud;
-  rs2::points points;
-
+  // Initialize the Realsense pipeline
   rs2::pipeline pipe;
-  rs2::config cfg;
-  cv::Mat output_depth_map;
-  cv::Mat depth_map;
-  std::mutex mtx;
-  std::condition_variable condition_var;
-  bool ready = false;
+  pipe.start();
 
-  // Start the streamDepthMap function in a separate thread
-  std::thread img_thread(streamDepthMap, std::ref(pipe),std::ref(cfg),
-      std::ref(output_depth_map), std::ref(mtx), std::ref(condition_var), std::ref(ready));
-
-  // Wait for the first available output_depth_map
-  {
-    std::unique_lock<std::mutex> lock(mtx);
-    condition_var.wait(lock, [&ready] { return ready; });
+  // Camera warmup - dropping several first frames to let auto-exposure stabilize
+  for (int i = 0; i < 100; i++) {
+    // Wait for all configured streams to produce a frame
+    auto frames = pipe.wait_for_frames(); // purposely does nothing with the frames
   }
-  // Copy the output_depth_map to depth_map so that we can use it in the rest of the program
-  depth_map = output_depth_map.clone();
+
+  // Capture a frame
+  rs2::frameset frames = pipe.wait_for_frames();
+  rs2::frame depth = frames.get_depth_frame();
+
+  // Create a threshold filter
+  rs2::threshold_filter threshold_filter;
+  threshold_filter.set_option(RS2_OPTION_MIN_DISTANCE, 0.5f);
+  threshold_filter.set_option(RS2_OPTION_MAX_DISTANCE, 0.9f);
+  depth = threshold_filter.process(depth);
 
   // Convert the depth frame to a PCL point cloud
-  pcl::PointCloud<pcl::PointXYZ>::Ptr pcl_cloud(new pcl::PointCloud<pcl::PointXYZ>), cloud_f(new pcl::PointCloud<pcl::PointXYZ>);
-  for (int y = 0; y < depth_map.rows; ++y) {
-    for (int x = 0; x < depth_map.cols; ++x) {
-      if (uint16_t depth_value = depth_map.at<uint16_t>(y, x); depth_value > 0) {
-        pcl::PointXYZ point;
-        point.x = static_cast<float>(x);
-        point.y = static_cast<float>(y);
-        point.z = static_cast<float>(depth_value) * 0.001f; // Convert from mm to meters
-        pcl_cloud->points.push_back(point);
-      }
+  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>), cloud_f(new pcl::PointCloud<pcl::PointXYZ>);
+  rs2::pointcloud rs_cloud;
+  rs2::points points = rs_cloud.calculate(depth);
+  auto stream_profile = points.get_profile().as<rs2::video_stream_profile>();
+  cloud->width = stream_profile.width();
+  cloud->height = stream_profile.height();
+  cloud->is_dense = false;
+  cloud->points.resize(points.size());
+
+  // Filter the point cloud then extract the points in the center
+  // We will want to crop the image to focus only on the center of the image (60% in x and y)
+  constexpr int overall_reduction_percentage = 40;
+
+  // Implement the percentages
+  const int width = stream_profile.width();
+  const int height = stream_profile.height();
+  const int x_offset = width * overall_reduction_percentage / 100 / 2;
+  const int y_offset = height * overall_reduction_percentage / 100 / 2;
+  const int crop_width = width * overall_reduction_percentage / 100;
+  const int crop_height = height * overall_reduction_percentage / 100;
+
+  // Extract the points
+  auto vertices = points.get_vertices();
+  int i = 0;
+  for (int y = y_offset; y < y_offset + crop_height; y++) {
+    for (int x = x_offset; x < x_offset + crop_width; x++, i++) {
+      cloud->points[i].x = vertices[i].x;
+      cloud->points[i].y = -vertices[i].y;
+      cloud->points[i].z = -vertices[i].z;
     }
   }
-  pcl_cloud->width = static_cast<uint32_t>(pcl_cloud->points.size());
-  pcl_cloud->height = 1;
-  pcl_cloud->is_dense = false;
-  pcl_cloud->sensor_origin_.setZero();
 
-  std::cout << "PointCloud captured from Realsense camera has: " << pcl_cloud->size() << " data points." << std::endl;
+  pipe.stop();
+  std::cout << "PointCloud captured from Realsense camera has: " << cloud->size() << " data points." << std::endl;
 
   // Create the filtering object: downsample the dataset using a leaf size of 1cm
   pcl::VoxelGrid<pcl::PointXYZ> vg;
   pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered (new pcl::PointCloud<pcl::PointXYZ>);
-  vg.setInputCloud (pcl_cloud);
-  vg.setLeafSize (0.01f, 0.01f, 0.01f);
+  vg.setInputCloud (cloud);
+  vg.setLeafSize (0.01f, 0.01f, 0.01f); // 0.01f default
   vg.filter (*cloud_filtered);
   std::cout << "PointCloud after filtering has: " << cloud_filtered->size ()  << " data points." << std::endl; //*
 
@@ -79,11 +89,13 @@ main ()
   seg.setOptimizeCoefficients (true);
   seg.setModelType (pcl::SACMODEL_PLANE);
   seg.setMethodType (pcl::SAC_RANSAC);
-  seg.setMaxIterations (100);
-  seg.setDistanceThreshold (0.02);
+  seg.setMaxIterations (100); // 100 default
+  seg.setDistanceThreshold (0.02); // 0.02 default
 
   int nr_points = static_cast<int>(cloud_filtered->size());
-  while (cloud_filtered->size () > 0.3 * nr_points)
+  int filter_count = 1;
+  // while (cloud_filtered->size () > 0.3 * nr_points) // 0.3 default
+  while (filter_count < 1)
   {
     // Segment the largest planar component from the remaining cloud
     seg.setInputCloud (cloud_filtered);
@@ -108,6 +120,8 @@ main ()
     extract.setNegative (true);
     extract.filter (*cloud_f);
     *cloud_filtered = *cloud_f;
+
+    filter_count++;
   }
 
   // Creating the KdTree object for the search method of the extraction
@@ -116,15 +130,15 @@ main ()
 
   std::vector<pcl::PointIndices> cluster_indices;
   pcl::EuclideanClusterExtraction<pcl::PointXYZ> ec;
-  ec.setClusterTolerance (0.02); // 2cm
-  ec.setMinClusterSize (100);
-  ec.setMaxClusterSize (25000);
+  ec.setClusterTolerance (0.02); // 2cm == 0.02 default
+  ec.setMinClusterSize (100); // 100 default
+  ec.setMaxClusterSize (25000); // 25000 default
   ec.setSearchMethod (tree);
   ec.setInputCloud (cloud_filtered);
   ec.extract (cluster_indices);
 
   // Clear out all the files in the output folder from the previous run
-  const std::string clear_command = "rm -f " + output_folder + "cloud_cluster_*.pcd";
+  const std::string clear_command = "rm -f " + output_folder + test_name + "_*.pcd";
   if (const int result = std::system(clear_command.c_str()); result != 0) {
     std::cerr << "Failed to execute rm command" << std::endl;
   } else {
@@ -151,11 +165,11 @@ main ()
     std::cout << "PointCloud representing the Cluster: " << cloud_cluster->size () << " data points." << std::endl;
     std::stringstream ss;
     ss << std::setw(4) << std::setfill('0') << j;
-    writer.write<pcl::PointXYZ> (output_folder + "cloud_cluster_" + ss.str () + ".pcd", *cloud_cluster, false);
+    writer.write<pcl::PointXYZ> (output_folder + test_name +"_" + ss.str () + ".pcd", *cloud_cluster, false);
     j++;
   }
 
-  const std::string show_command = "pcl_viewer ../lab_data/cloud_cluster_*.pcd";
+  const std::string show_command = "pcl_viewer " + output_folder + test_name + "_*.pcd";
   if (const int result = std::system(show_command.c_str()); result != 0) {
     std::cerr << "Failed to execute pcl_viewer command" << std::endl;
   }

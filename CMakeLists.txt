@@ -38,5 +38,5 @@ add_executable(extraction src/pose_estimation.h src/cluster_extraction.cpp)
 target_link_libraries(extraction ${PCL_LIBRARIES} realsense2 ${OpenCV_LIBS} ${FLANN_LIBRARIES} ${HDF5_LIBRARIES} ${Boost_LIBRARIES})
 
 # Cluster Extraction executable
-add_executable(extraction_prefilter src/pose_estimation.h src/cluster_extraction_prefilter.cpp)
-target_link_libraries(extraction_prefilter ${PCL_LIBRARIES} realsense2 ${OpenCV_LIBS} ${FLANN_LIBRARIES} ${HDF5_LIBRARIES} ${Boost_LIBRARIES})
+add_executable(extraction_test src/pose_estimation.h src/cluster_extraction_test.cpp)
+target_link_libraries(extraction_test ${PCL_LIBRARIES} realsense2 ${OpenCV_LIBS} ${FLANN_LIBRARIES} ${HDF5_LIBRARIES} ${Boost_LIBRARIES})
