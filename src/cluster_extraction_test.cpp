@@ -18,9 +18,11 @@ int main () {
   const std::string output_folder = "../lab_data/test/";
   const std::string test_name = "test";
 
-  // Initialize the Realsense pipeline
+  // Initialise the Realsense pipeline
   rs2::pipeline pipe;
-  pipe.start();
+  rs2::config config;
+  config.enable_stream(RS2_STREAM_DEPTH, cam_res_width, cam_res_height, RS2_FORMAT_Z16, cam_fps); // Use global parameters
+  pipe.start(config);
 
   // Camera warmup - dropping several first frames to let auto-exposure stabilize
   for (int i = 0; i < 100; i++) {
@@ -136,10 +138,11 @@ int main () {
     j++;
   }
 
-  const std::string show_command = "pcl_viewer " + output_folder + test_name + "_*.pcd";
-  if (const int result = std::system(show_command.c_str()); result != 0) {
-    std::cerr << "Failed to execute pcl_viewer command" << std::endl;
-  }
+  const std::string files_to_show_pattern = output_folder + test_name + "_*.pcd";
+  std::vector<std::string> files_to_show = globFiles(files_to_show_pattern);
+
+  // Display the results to review
+  showPointClouds(files_to_show);
 
   return 0;
 }

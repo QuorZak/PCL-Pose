@@ -52,10 +52,11 @@ void showPdcFile(const int usePclViewer = 0) {
 }
 
 void streamDepthMap() {
+  // Initialise the Realsense pipeline
   rs2::pipeline pipe;
-  rs2::config cfg;
-  cfg.enable_stream(RS2_STREAM_DEPTH, 640, 480, RS2_FORMAT_Z16, 15);
-  pipe.start(cfg);
+  rs2::config config;
+  config.enable_stream(RS2_STREAM_DEPTH, cam_res_width, cam_res_height, RS2_FORMAT_Z16, cam_fps); // Use global parameters
+  pipe.start(config);
 
   while (true) {
     auto frames = pipe.wait_for_frames();

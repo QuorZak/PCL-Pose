@@ -30,28 +30,26 @@ int main () {
   }
   file_num += 1;
 
+  // Initialise the Realsense pipeline
+  rs2::pipeline pipe;
+  rs2::config config;
+  config.enable_stream(RS2_STREAM_DEPTH, cam_res_width, cam_res_height, RS2_FORMAT_Z16, cam_fps); // Use global parameters
+  pipe.start(config);
+
+  // Camera warmup - dropping several first frames to let auto-exposure stabilize
+  for (int i = 0; i < 100; i++) {
+    // Wait for all configured streams to produce a frame
+    auto frames = pipe.wait_for_frames(); // purposely does nothing with the frames
+  }
+
   while (true) {
     std::cout << "Ready to capture point cloud. " << std::endl;
     std::cout << "Press any key when ready, or Q to quit" << std::endl;
 
-    // Wait for the user to press a key
-    char key = '';
-    while (key == '')
-    {
-      key = cv::waitKey(0);
-      if (key == 'Q' || key == 'q') {
-        break;
-      }
-    }
-
-    // Initialize the Realsense pipeline
-    rs2::pipeline pipe;
-    pipe.start();
-
-    // Camera warmup - dropping several first frames to let auto-exposure stabilize
-    for (int i = 0; i < 100; i++) {
-      // Wait for all configured streams to produce a frame
-      auto frames = pipe.wait_for_frames(); // purposely does nothing with the frames
+    char key;
+    std::cin >> key;
+    if (key == 'Q' || key == 'q') {
+      break;
     }
 
     // Capture a frame
@@ -62,7 +60,6 @@ int main () {
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>), cloud_f(new pcl::PointCloud<pcl::PointXYZ>);
     cloud = depthFrameToPointCloud(depth, true, true);
 
-    pipe.stop();
     std::cout << "PointCloud captured from Realsense camera has: " << cloud->size() << " data points." << std::endl;
 
     // Create the filtering object: downsample the dataset using a leaf size of 1cm
@@ -71,7 +68,7 @@ int main () {
     vg.setInputCloud (cloud);
     vg.setLeafSize (0.01f, 0.01f, 0.01f); // 0.01f default
     vg.filter (*cloud_filtered);
-    std::cout << "PointCloud after filtering has: " << cloud_filtered->size ()  << " data points." << std::endl; //*
+    std::cout << "PointCloud after filtering has: " << cloud_filtered->size ()  << " data points." << std::endl;
 
     // Create the segmentation object for the planar model and set all the parameters
     pcl::SACSegmentation<pcl::PointXYZ> seg;
@@ -85,16 +82,12 @@ int main () {
     seg.setMaxIterations (100); // 100 default
     seg.setDistanceThreshold (0.02); // 0.02 default
 
-    // int nr_points = static_cast<int>(cloud_filtered->size());
     int filter_count = 0;
-    // while (cloud_filtered->size () > 0.3 * nr_points) // 0.3 default
-    while (filter_count < 1)
-    {
+    while (filter_count < 1) {
       // Segment the largest planar component from the remaining cloud
       seg.setInputCloud (cloud_filtered);
       seg.segment (*inliers, *coefficients);
-      if (inliers->indices.empty())
-      {
+      if (inliers->indices.empty()) {
         std::cout << "Could not estimate a planar model for the given dataset." << std::endl;
         return 1;
       }
@@ -131,16 +124,14 @@ int main () {
     ec.extract (cluster_indices);
 
     // If no clusters are found, output a message
-    if (!cluster_indices.empty())
-    {
+    if (!cluster_indices.empty()) {
       int j = 0;
       std::vector<std::string> created_files;
-      for (const auto& cluster : cluster_indices)
-      {
+      for (const auto& cluster : cluster_indices) {
         pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cluster (new pcl::PointCloud<pcl::PointXYZ>);
         for (const auto& idx : cluster.indices) {
           cloud_cluster->push_back((*cloud_filtered)[idx]);
-        } //*
+        }
         cloud_cluster->width = cloud_cluster->size ();
         cloud_cluster->height = 1;
         cloud_cluster->is_dense = true;
@@ -163,28 +154,26 @@ int main () {
         j++;
       }
 
-      const std::string show_command = "pcl_viewer " + output_folder += object_name + "_*.pcd";
-      if (const int result = std::system(show_command.c_str()); result != 0) {
-        std::cerr << "Failed to execute pcl_viewer command" << std::endl;
-        return -1;
-      }
+      // Display the results to review
+      showPointClouds(created_files);
 
       std::cout << "Keep the result? y/[n]" << std::endl;
-      char choice = cv::waitKey(0);
+      char choice;
+      std::cin >> choice;
       if (choice == 'y' || choice == 'Y') {
+        std::cout << "Files saved." << std::endl;
         continue;
-      } else if (choice == 'n' || choice == 'N') {
+      } else {
         for (const auto& file : created_files) {
           std::remove(file.c_str());
         }
         std::cout << "Files deleted." << std::endl;
-      } else {
-        break;
       }
     } else {
       std::cout << "No clusters found." << std::endl;
-      std::cout << "Do you want to continue?" << std::endl;
-      char choice = cv::waitKey(0);
+      std::cout << "Do you want to continue? y/[n]" << std::endl;
+      char choice;
+      std::cin >> choice;
       if (choice != 'y' && choice != 'Y') {
         break;
       }

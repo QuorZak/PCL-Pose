@@ -18,11 +18,12 @@
 #include <iostream>
 #include <thread>
 #include <mutex>
+#include <utility>
 #include <condition_variable>
 #include <stack>
+#include <glob.h>
 
 #include <opencv2/opencv.hpp>
-#include <utility>
 
 // Define vfh_model type for storing data file name and histogram data
 typedef std::pair<std::string, std::vector<float> > vfh_model;
@@ -31,6 +32,12 @@ typedef std::pair<std::string, std::vector<float> > vfh_model;
 inline extern const int image_reduced_to_percentage = 60;
 inline extern const float depth_filter_min_distance = 0.5f;
 inline extern const float depth_filter_max_distance = 1.0f;
+
+// Global camera config params
+// 848x480 resolution, 15 frames per second is optimal for Realsense D455
+inline extern const int cam_res_width = 848;
+inline extern const int cam_res_height = 480;
+inline extern const int cam_fps = 15;
 
 // This function takes the width and height of a depth image and returns the x and y start and stop points for cropping
 // The start and stop points are the absolute vales of the start position and stop position of the crop
@@ -116,7 +123,7 @@ inline void stream_point_cloud_show_depth_map(rs2::pipeline pipe, pcl::PointClou
 
   // Add a stream with its parameters
   rs2::config config;
-  config.enable_stream(RS2_STREAM_DEPTH, 640, 480, RS2_FORMAT_Z16, 15);
+  config.enable_stream(RS2_STREAM_DEPTH, cam_res_width, cam_res_height, RS2_FORMAT_Z16, cam_fps);
 
   // Instruct pipeline to start streaming with the requested configuration
   pipe.start(config);
@@ -431,4 +438,37 @@ inline void nearestKSearch (const flann::Index<flann::ChiSquareDistance<float> >
   distances = flann::Matrix<float>(new float[k], 1, k);
   index.knnSearch (p, indices, distances, k, flann::SearchParams (512));
   delete[] p.ptr ();
+}
+
+// Function to show the point clouds with increased point size
+inline void showPointClouds(const std::vector<std::string>& created_files) {
+  const pcl::visualization::PCLVisualizer::Ptr viewer(new pcl::visualization::PCLVisualizer("3D Viewer"));
+  viewer->setBackgroundColor(0, 0, 0);
+
+  for (const auto& file : created_files) {
+    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
+    if (pcl::io::loadPCDFile(file, *cloud) == -1) {
+      PCL_ERROR("Couldn't read file %s \n", file.c_str());
+      continue;
+    }
+    viewer->addPointCloud<pcl::PointXYZ>(cloud, file);
+    viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 5, file); // Increase point size
+  }
+
+  while (!viewer->wasStopped()) {
+    viewer->spinOnce(100);
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  }
+}
+
+// Function to get all files matching a pattern
+inline std::vector<std::string> globFiles(const std::string& pattern) {
+  glob_t glob_result;
+  glob(pattern.c_str(), GLOB_TILDE, nullptr, &glob_result);
+  std::vector<std::string> files;
+  for (unsigned int i = 0; i < glob_result.gl_pathc; ++i) {
+    files.emplace_back(glob_result.gl_pathv[i]);
+  }
+  globfree(&glob_result);
+  return files;
 }
