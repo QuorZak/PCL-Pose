@@ -25,22 +25,33 @@
 // Define vfh_model type for storing data file name and histogram data
 typedef std::pair<std::string, std::vector<float> > vfh_model;
 
+// Declare global variables that all functions in the .cpp files can access
+inline extern const int image_reduced_to_percentage = 20;
+inline extern const float depth_filter_min_distance = 0.5f;
+inline extern const float depth_filter_max_distance = 0.9f;
+
+// This function takes the width and height of a depth image and returns the x and y start and stop points for cropping
+// The start and stop points are the absolute vales of the start position and stop position of the crop
+// E.g. start_x = 150, stop_x = 450, start_y = 100, stop_y = 350 for a 640x480 image
+// The percentage is the value of what the image should be reduced to (i.e. 40% of the original image)
+inline std::tuple<int, int, int, int> get_crop_points(const int width, const int height, const int percentage) {
+  // Check to see if value is between 0 and 100
+  if (percentage < 0 || percentage > 100) {
+    throw std::invalid_argument("Percentage must be between 0 and 100");
+  }
+  int x_start = width * (100 - percentage) / 200;
+  int y_start = height * (100 - percentage) / 200;
+  int x_stop = width * (100 + percentage) / 200;
+  int y_stop = height * (100 + percentage) / 200;
+  return std::make_tuple(x_start, x_stop, y_start, y_stop);
+}
+
 // This function streams the depth map from the Realsense camera through OpenCV
 inline void streamDepthMap(rs2::pipeline pipe, rs2::config cfg, cv::Mat &output_depth_map, std::mutex &mtx, std::condition_variable &cv, bool &ready) {
     // Create a threshold filter
     rs2::threshold_filter threshold_filter;
-    threshold_filter.set_option(RS2_OPTION_MIN_DISTANCE, 0.5f);
-    threshold_filter.set_option(RS2_OPTION_MAX_DISTANCE, 0.9f);
-
-
-    // We will want to crop the image to focus only on the center of the image (50% in x and y)
-    constexpr int overall_reduction_percentage = 40;
-
-    // Implement the percentages
-    constexpr int x_offset = 640 * overall_reduction_percentage / 100 / 2;
-    constexpr int y_offset = 480 * overall_reduction_percentage / 100 / 2;
-    constexpr int crop_width = 640 * overall_reduction_percentage / 100;
-    constexpr int crop_height = 480 * overall_reduction_percentage / 100;
+    threshold_filter.set_option(RS2_OPTION_MIN_DISTANCE, depth_filter_min_distance);
+    threshold_filter.set_option(RS2_OPTION_MAX_DISTANCE, depth_filter_max_distance);
 
     // Add a stream with its parameters
     cfg.enable_stream(RS2_STREAM_DEPTH, 640, 480, RS2_FORMAT_Z16, 15);
@@ -65,7 +76,11 @@ inline void streamDepthMap(rs2::pipeline pipe, rs2::config cfg, cv::Mat &output_
 
         // Create OpenCV matrix of size (w,h) from the depth frame
         cv::Mat depth_image(cv::Size(640, 480), CV_16UC1, const_cast<void*>(depth.get_data()), cv::Mat::AUTO_STEP);
-        cv::Mat cropped_depth_image = depth_image(cv::Rect(x_offset, y_offset, crop_width, crop_height));
+
+        // Get crop points using the get_crop_points function
+        const auto [x_start, x_stop, y_start, y_stop]
+                    = get_crop_points(640, 480, image_reduced_to_percentage);
+        cv::Mat cropped_depth_image = depth_image(cv::Rect(x_start, y_start, x_stop - x_start, y_stop - y_start));
 
         // Convert the depth image to CV_8UC1
         cv::Mat depth_image_8u;

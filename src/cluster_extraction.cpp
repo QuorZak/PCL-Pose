@@ -52,10 +52,10 @@ while (true) {
     rs2::frameset frames = pipe.wait_for_frames();
     rs2::frame depth = frames.get_depth_frame();
 
-    // Create a threshold filter
+    // Implement a depth threshold filter
     rs2::threshold_filter threshold_filter;
-    threshold_filter.set_option(RS2_OPTION_MIN_DISTANCE, 0.5f);
-    threshold_filter.set_option(RS2_OPTION_MAX_DISTANCE, 0.9f);
+    threshold_filter.set_option(RS2_OPTION_MIN_DISTANCE, depth_filter_min_distance);
+    threshold_filter.set_option(RS2_OPTION_MAX_DISTANCE, depth_filter_max_distance);
     depth = threshold_filter.process(depth);
 
     // Convert the depth frame to a PCL point cloud
@@ -63,33 +63,28 @@ while (true) {
     rs2::pointcloud rs_cloud;
     rs2::points points = rs_cloud.calculate(depth);
     auto stream_profile = points.get_profile().as<rs2::video_stream_profile>();
-    cloud->width = stream_profile.width();
-    cloud->height = stream_profile.height();
+    const int width = stream_profile.width();
+    const int height = stream_profile.height();
+    cloud->width = width;
+    cloud->height = height;
     cloud->is_dense = false;
     cloud->points.resize(points.size());
 
-    // Filter the point cloud then extract the points in the center
-    // We will want to crop the image to focus only on the center of the image
-    constexpr int overall_reduction_percentage = 40;
+  // Filter the point cloud then extract the points in the center
+  // We will want to crop the image to focus only on the center
+  const auto [x_start, x_stop, y_start, y_stop]
+              = get_crop_points(width, height, image_reduced_to_percentage);
 
-    // Implement the percentages. The implementation is currently correct for my setup. Don't change it.
-    const int width = stream_profile.width();
-    const int height = stream_profile.height();
-    const int x_offset = width * overall_reduction_percentage / 100 / 2;
-    const int y_offset = height * overall_reduction_percentage / 100 / 2;
-    const int crop_width = width * overall_reduction_percentage / 100;
-    const int crop_height = height * overall_reduction_percentage / 100;
-
-    // Extract the points
-    auto vertices = points.get_vertices();
-    int i = 0;
-    for (int y = y_offset; y < y_offset + crop_height; y++) {
-      for (int x = x_offset; x < x_offset + crop_width; x++, i++) {
-        cloud->points[i].x = vertices[i].x;
-        cloud->points[i].y = -vertices[i].y;
-        cloud->points[i].z = -vertices[i].z;
-      }
+  // Extract the points
+  auto vertices = points.get_vertices();
+  int i = 0;
+  for (int y = y_start; y < y_stop; y++) {
+    for (int x = x_start; x < x_stop; x++, i++) {
+      cloud->points[i].x = vertices[i].x;
+      cloud->points[i].y = -vertices[i].y;
+      cloud->points[i].z = -vertices[i].z;
     }
+  }
 
     pipe.stop();
     std::cout << "PointCloud captured from Realsense camera has: " << cloud->size() << " data points." << std::endl;
