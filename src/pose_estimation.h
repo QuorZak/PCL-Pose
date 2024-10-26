@@ -19,6 +19,7 @@
 #include <thread>
 #include <mutex>
 #include <condition_variable>
+#include <stack>
 
 #include <opencv2/opencv.hpp>
 
@@ -26,9 +27,9 @@
 typedef std::pair<std::string, std::vector<float> > vfh_model;
 
 // Declare global variables that all functions in the .cpp files can access
-inline extern const int image_reduced_to_percentage = 20;
+inline extern const int image_reduced_to_percentage = 70;
 inline extern const float depth_filter_min_distance = 0.5f;
-inline extern const float depth_filter_max_distance = 0.9f;
+inline extern const float depth_filter_max_distance = 1.0f;
 
 // This function takes the width and height of a depth image and returns the x and y start and stop points for cropping
 // The start and stop points are the absolute vales of the start position and stop position of the crop
@@ -46,68 +47,125 @@ inline std::tuple<int, int, int, int> get_crop_points(const int width, const int
   return std::make_tuple(x_start, x_stop, y_start, y_stop);
 }
 
-// This function streams the depth map from the Realsense camera through OpenCV
-inline void streamDepthMap(rs2::pipeline pipe, rs2::config cfg, cv::Mat &output_depth_map, std::mutex &mtx, std::condition_variable &cv, bool &ready) {
-    // Create a threshold filter
+// Convert the depth frame to a PCL point cloud
+// Allows for optional cropping of the image if crop is set to true
+// The crop is centered around the center of the image
+inline pcl::PointCloud<pcl::PointXYZ>::Ptr depthFrameToPointCloud(rs2::depth_frame depth,
+  const bool filter = false, const bool crop = false) {
+
+  if (filter) {
+    // Filter the depth values of the depth frame
     rs2::threshold_filter threshold_filter;
     threshold_filter.set_option(RS2_OPTION_MIN_DISTANCE, depth_filter_min_distance);
     threshold_filter.set_option(RS2_OPTION_MAX_DISTANCE, depth_filter_max_distance);
+    depth = threshold_filter.process(depth);
+  }
 
-    // Add a stream with its parameters
-    cfg.enable_stream(RS2_STREAM_DEPTH, 640, 480, RS2_FORMAT_Z16, 15);
+  // Convert the depth frame to a PCL point cloud
+  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
+  rs2::pointcloud rs_cloud;
+  rs2::points points = rs_cloud.calculate(depth);
+  auto stream_profile = points.get_profile().as<rs2::video_stream_profile>();
+  const int width = stream_profile.width();
+  const int height = stream_profile.height();
+  cloud->width = width;
+  cloud->height = height;
+  cloud->is_dense = false;
+  cloud->points.resize(points.size());
 
-    // Instruct pipeline to start streaming with the requested configuration
-    pipe.start(cfg);
+  // Initialise start and stop to default values
+  int x_start = 0, x_stop = width, y_start = 0, y_stop = height;
 
-    // Camera warmup - dropping several first frames to let auto-exposure stabilize
-    for (int i = 0; i < 100; i++) {
-        // Wait for all configured streams to produce a frame
-        auto frames = pipe.wait_for_frames(); // purposely does nothing with the frames
+  // We want to crop the image to focus only on the center
+  if (crop) {
+    const auto [x_start_crop, x_stop_crop, y_start_crop, y_stop_crop]
+                = get_crop_points(width, height, image_reduced_to_percentage);
+    // Update the start and stop values
+    x_start = x_start_crop;
+    x_stop = x_stop_crop;
+    y_start = y_start_crop;
+    y_stop = y_stop_crop;
+  }
+
+  // Extract the points
+  const auto vertices = points.get_vertices();
+  int i = 0;
+  for (int y = y_start; y < y_stop; y++) {
+    for (int x = x_start; x < x_stop; x++, i++) {
+      int index = y * width + x;
+      cloud->points[i].x = vertices[index].x;
+      cloud->points[i].y = -vertices[index].y;
+      cloud->points[i].z = -vertices[index].z;
     }
-
-    while (true) {
-        // Wait for the next set of frames from the camera
-        auto frames = pipe.wait_for_frames();
-
-        // Get a frame from the depth stream
-        auto depth = frames.get_depth_frame();
-        // filter the depth frame
-        depth = threshold_filter.process(depth);
-
-        // Create OpenCV matrix of size (w,h) from the depth frame
-        cv::Mat depth_image(cv::Size(640, 480), CV_16UC1, const_cast<void*>(depth.get_data()), cv::Mat::AUTO_STEP);
-
-        // Get crop points using the get_crop_points function
-        const auto [x_start, x_stop, y_start, y_stop]
-                    = get_crop_points(640, 480, image_reduced_to_percentage);
-        cv::Mat cropped_depth_image = depth_image(cv::Rect(x_start, y_start, x_stop - x_start, y_stop - y_start));
-
-        // Convert the depth image to CV_8UC1
-        cv::Mat depth_image_8u;
-        cropped_depth_image.convertTo(depth_image_8u, CV_8UC1, 255.0 / 10000); // Scale the depth values to 8-bit
-
-        // Apply colormap on depth image
-        cv::Mat depth_colormap;
-        cv::applyColorMap(depth_image_8u, depth_colormap, cv::COLORMAP_JET);
-
-        // Lock the mutex and update the shared output_depth_map
-        {
-            std::lock_guard<std::mutex> lock(mtx);
-            output_depth_map = depth_colormap.clone();
-            ready = true;
-        }
-        cv.notify_one();
-
-        // Display the depth map
-        cv::imshow("Depth Map Stream", depth_colormap);
-        if (cv::waitKey(1) >= 0) {
-            break;
-        }
-    }
-    // Stop the pipeline
-    pipe.stop();
-    cv::destroyAllWindows();
+  }
+  // set the size of the point cloud
+  cloud->width = x_stop - x_start;
+  cloud->height = y_stop - y_start;
+  cloud->is_dense = false;
+  return cloud;
 }
+
+inline void stream_point_cloud_show_depth_map(rs2::pipeline pipe, pcl::PointCloud<pcl::PointXYZ>::Ptr &output_stream_cloud,
+  std::mutex &mtx, std::condition_variable &cv, bool &ready) {
+
+  // Add a stream with its parameters
+  rs2::config config;
+  config.enable_stream(RS2_STREAM_DEPTH, 640, 480, RS2_FORMAT_Z16, 15);
+
+  // Instruct pipeline to start streaming with the requested configuration
+  pipe.start(config);
+
+  // Camera warmup - dropping several first frames to let auto-exposure stabilize
+  for (int i = 0; i < 100; i++) {
+      // Wait for all configured streams to produce a frame
+      auto frames = pipe.wait_for_frames(); // purposely does nothing with the frames
+  }
+
+  while (true) {
+    // Wait for the next set of frames from the camera
+    auto frames = pipe.wait_for_frames();
+
+    // Get a frame from the depth stream
+    auto depth = frames.get_depth_frame();
+
+    auto cloud = depthFrameToPointCloud(depth, true, true);
+
+    // Create OpenCV matrix of size (w,h) from the depth frame
+    cv::Mat depth_image(cv::Size(640, 480), CV_16UC1, const_cast<void*>(depth.get_data()), cv::Mat::AUTO_STEP);
+
+    // Get crop points using the get_crop_points function
+    const auto [x_start, x_stop, y_start, y_stop]
+                = get_crop_points(640, 480, image_reduced_to_percentage);
+    cv::Mat cropped_depth_image = depth_image(cv::Rect(x_start, y_start, x_stop - x_start, y_stop - y_start));
+
+    // Convert the depth image to CV_8UC1
+    cv::Mat depth_image_8u;
+    cropped_depth_image.convertTo(depth_image_8u, CV_8UC1, 255.0 / 10000); // Scale the depth values to 8-bit
+
+    // Apply colormap on depth image
+    cv::Mat depth_colormap;
+    cv::applyColorMap(depth_image_8u, depth_colormap, cv::COLORMAP_JET);
+
+    // Lock the mutex and update the shared output_depth_map
+    {
+        std::lock_guard<std::mutex> lock(mtx);
+        output_stream_cloud = cloud;
+        ready = true;
+    }
+    cv.notify_one();
+
+    // Display the depth map
+    cv::imshow("Depth Map Stream", depth_colormap);
+    if (cv::waitKey(1) >= 0) {
+        break;
+    }
+  }
+  // Stop the pipeline
+  pipe.stop();
+  cv::destroyAllWindows();
+}
+
+
 
 // This function estimates VFH signatures of an input point cloud 
 // Input: File path
@@ -214,37 +272,32 @@ inline bool loadHist (const boost::filesystem::path &path, vfh_model &vfh)
 // then pushes the results into a vfh_model vector to keep them in a data storage
 // Input: Training data set file path
 // Output: A vfh_model vector that contains all VFH signature information
-inline void loadData(const boost::filesystem::path &base_dir, std::vector<vfh_model> &models)
-{
-  if (!boost::filesystem::exists (base_dir) && !boost::filesystem::is_directory (base_dir))
+inline void loadData(const boost::filesystem::path &base_dir, std::vector<vfh_model> &models) {
+  if (!boost::filesystem::exists(base_dir) || !boost::filesystem::is_directory(base_dir)) {
     return;
-  else
-  {
-	// Iterate through the data set directory to read VFH signatures
-  	for (boost::filesystem::directory_iterator i (base_dir); i != boost::filesystem::directory_iterator (); ++i)
-	{
-	  // If read path is a directory, then print path name on console and call data loader again
-	  if (boost::filesystem::is_directory (i->status ()))
-	  {
-	  	std::stringstream ss;
-		ss << i->path ();
-		pcl::console::print_highlight ("Loading %s (%lu models loaded so far).\n", ss.str ().c_str (), (unsigned long)models.size ());
-	    loadData (i->path (), models);
-	  }
-	  // If read path is a file with *.pcd extension, then check if it contains VFH signature
-	  // If not, then estimate VFH signature of it
-	  // Either way, pass the file to histogram loader since it can differentiate between files with VFH signatures and files without them
-	  if (boost::filesystem::is_regular_file (i->status ()) && boost::filesystem::extension (i->path ()) == ".pcd")
-	  {
-		  vfh_model m;
-		  std::string str = i->path ().string();
-		  if (loadHist (i->path ().string(), m))
-		  {
-		  	models.push_back (m);	
-		  	std::cout << m.first << std::endl;
-		  }
-	  }
-	}
+  }
+
+  std::stack<boost::filesystem::path> directories;
+  directories.push(base_dir);
+
+  while (!directories.empty()) {
+    boost::filesystem::path current_dir = directories.top();
+    directories.pop();
+
+    for (boost::filesystem::directory_iterator i(current_dir); i != boost::filesystem::directory_iterator(); ++i) {
+      if (boost::filesystem::is_directory(i->status())) {
+        directories.push(i->path());
+        std::stringstream ss;
+        ss << i->path();
+        pcl::console::print_highlight("Loading %s (%lu models loaded so far).\n", ss.str().c_str(), (unsigned long)models.size());
+      } else if (boost::filesystem::is_regular_file(i->status()) && boost::filesystem::extension(i->path()) == ".pcd") {
+        vfh_model m;
+        if (loadHist(i->path().string(), m)) {
+          models.push_back(m);
+          std::cout << m.first << std::endl;
+        }
+      }
+    }
   }
 }
 

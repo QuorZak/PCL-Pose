@@ -30,12 +30,18 @@ int main () {
   }
   file_num += 1;
 
-while (true) {
+  while (true) {
     std::cout << "Ready to capture point cloud. " << std::endl;
     std::cout << "Press any key when ready, or Q to quit" << std::endl;
-    char key = cv::waitKey(0);
-    if (key == 'Q' || key == 'q') {
-      break;
+
+    // Wait for the user to press a key
+    char key = '';
+    while (key == '')
+    {
+      key = cv::waitKey(0);
+      if (key == 'Q' || key == 'q') {
+        break;
+      }
     }
 
     // Initialize the Realsense pipeline
@@ -52,39 +58,9 @@ while (true) {
     rs2::frameset frames = pipe.wait_for_frames();
     rs2::frame depth = frames.get_depth_frame();
 
-    // Implement a depth threshold filter
-    rs2::threshold_filter threshold_filter;
-    threshold_filter.set_option(RS2_OPTION_MIN_DISTANCE, depth_filter_min_distance);
-    threshold_filter.set_option(RS2_OPTION_MAX_DISTANCE, depth_filter_max_distance);
-    depth = threshold_filter.process(depth);
-
     // Convert the depth frame to a PCL point cloud
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>), cloud_f(new pcl::PointCloud<pcl::PointXYZ>);
-    rs2::pointcloud rs_cloud;
-    rs2::points points = rs_cloud.calculate(depth);
-    auto stream_profile = points.get_profile().as<rs2::video_stream_profile>();
-    const int width = stream_profile.width();
-    const int height = stream_profile.height();
-    cloud->width = width;
-    cloud->height = height;
-    cloud->is_dense = false;
-    cloud->points.resize(points.size());
-
-  // Filter the point cloud then extract the points in the center
-  // We will want to crop the image to focus only on the center
-  const auto [x_start, x_stop, y_start, y_stop]
-              = get_crop_points(width, height, image_reduced_to_percentage);
-
-  // Extract the points
-  auto vertices = points.get_vertices();
-  int i = 0;
-  for (int y = y_start; y < y_stop; y++) {
-    for (int x = x_start; x < x_stop; x++, i++) {
-      cloud->points[i].x = vertices[i].x;
-      cloud->points[i].y = -vertices[i].y;
-      cloud->points[i].z = -vertices[i].z;
-    }
-  }
+    cloud = depthFrameToPointCloud(depth, true, true);
 
     pipe.stop();
     std::cout << "PointCloud captured from Realsense camera has: " << cloud->size() << " data points." << std::endl;
@@ -120,7 +96,7 @@ while (true) {
       if (inliers->indices.empty())
       {
         std::cout << "Could not estimate a planar model for the given dataset." << std::endl;
-        break;
+        return 1;
       }
 
       // Extract the planar inliers from the input cloud
@@ -198,7 +174,7 @@ while (true) {
       const std::string show_command = "pcl_viewer " + output_folder += object_name + "_*.pcd";
       if (const int result = std::system(show_command.c_str()); result != 0) {
         std::cerr << "Failed to execute pcl_viewer command" << std::endl;
-        break;
+        return -1;
       }
 
       std::cout << "Keep the result? y/[n]" << std::endl;

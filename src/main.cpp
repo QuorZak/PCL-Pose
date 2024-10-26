@@ -22,46 +22,29 @@ int main(int argc, char** argv) {
 
     rs2::pipeline pipeline;
     rs2::frame depth;
-    rs2::pointcloud rs_cloud;
     rs2::points points;
 
     rs2::pipeline pipe;
-    rs2::config cfg;
-    cv::Mat output_depth_map;
-    cv::Mat depth_map;
+    pcl::PointCloud<pcl::PointXYZ>::Ptr output_stream_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+    pcl::PointCloud<pcl::PointXYZ> output_stream_copy;
+    pcl::PointCloud<pcl::PointXYZ>::Ptr pcl_cloud(new pcl::PointCloud<pcl::PointXYZ>);
     std::mutex mtx;
     std::condition_variable condition_var;
     bool ready = false;
 
     // Start the streamDepthMap function in a separate thread
-    std::thread img_thread(streamDepthMap, std::ref(pipe),std::ref(cfg),
-        std::ref(output_depth_map), std::ref(mtx), std::ref(condition_var), std::ref(ready));
+    std::thread img_thread(stream_point_cloud_show_depth_map, std::ref(pipe), std::ref(output_stream_cloud),
+        std::ref(mtx), std::ref(condition_var), std::ref(ready));
 
-    // Wait for the first available output_depth_map
+    // Wait for the first available output Realsense cloud
     {
         std::unique_lock<std::mutex> lock(mtx);
         condition_var.wait(lock, [&ready] { return ready; });
+        // Once the lock is acquired, copy the output stream cloud to the pcl cloud
+        output_stream_copy = *output_stream_cloud;
     }
-    // Copy the output_depth_map to depth_map so that we can use it in the rest of the program
-    depth_map = output_depth_map.clone();
-
-    // Convert the depth frame to a PCL point cloud
-    pcl::PointCloud<pcl::PointXYZ>::Ptr pcl_cloud(new pcl::PointCloud<pcl::PointXYZ>);
-    for (int y = 0; y < depth_map.rows; ++y) {
-        for (int x = 0; x < depth_map.cols; ++x) {
-            if (uint16_t depth_value = depth_map.at<uint16_t>(y, x); depth_value > 0) {
-                pcl::PointXYZ point;
-                point.x = static_cast<float>(x);
-                point.y = static_cast<float>(y);
-                point.z = static_cast<float>(depth_value) * 0.001f; // Convert from mm to meters
-                pcl_cloud->points.push_back(point);
-            }
-        }
-    }
-    pcl_cloud->width = static_cast<uint32_t>(pcl_cloud->points.size());
-    pcl_cloud->height = 1;
-    pcl_cloud->is_dense = false;
-    pcl_cloud->sensor_origin_.setZero();
+    // Create a usable pointer to the point cloud
+    *pcl_cloud = output_stream_copy;
 
     // Save the point cloud to a PCD file
     if (pcl_cloud->points.empty()) {
@@ -115,6 +98,9 @@ int main(int argc, char** argv) {
 
     // Visualize the closest candidates on the screen
     visualize(argc, argv, k, thresh, models, k_indices, k_distances);
+
+    // Join the thread before exiting
+    img_thread.join();
 
     return 0;
 }

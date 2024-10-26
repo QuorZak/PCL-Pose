@@ -32,42 +32,9 @@ int main () {
   rs2::frameset frames = pipe.wait_for_frames();
   rs2::frame depth = frames.get_depth_frame();
 
-  // Implement a depth threshold filter
-  rs2::threshold_filter threshold_filter;
-  threshold_filter.set_option(RS2_OPTION_MIN_DISTANCE, depth_filter_min_distance);
-  threshold_filter.set_option(RS2_OPTION_MAX_DISTANCE, depth_filter_max_distance);
-  depth = threshold_filter.process(depth);
-
   // Convert the depth frame to a PCL point cloud
   pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>), cloud_f(new pcl::PointCloud<pcl::PointXYZ>);
-  rs2::pointcloud rs_cloud;
-  rs2::points points = rs_cloud.calculate(depth);
-  auto stream_profile = points.get_profile().as<rs2::video_stream_profile>();
-  const int width = stream_profile.width();
-  const int height = stream_profile.height();
-  cloud->width = width;
-  cloud->height = height;
-  cloud->is_dense = false;
-  cloud->points.resize(points.size());
-
-  // Filter the point cloud then extract the points in the center
-  // We will want to crop the image to focus only on the center
-  const auto [x_start, x_stop, y_start, y_stop]
-              = get_crop_points(width, height, image_reduced_to_percentage);
-
-  // Extract the points
-  auto vertices = points.get_vertices();
-  int i = 0;
-  for (int y = y_start; y < y_stop; y++) {
-    for (int x = x_start; x < x_stop; x++, i++) {
-      cloud->points[i].x = vertices[i].x;
-      cloud->points[i].y = -vertices[i].y;
-      cloud->points[i].z = -vertices[i].z;
-    }
-  }
-  // set the size of the point cloud
-  cloud->width = x_stop - x_start;
-  cloud->height = y_stop - y_start;
+  cloud = depthFrameToPointCloud(depth, true, true);
 
   pipe.stop();
   std::cout << "PointCloud captured from Realsense camera has: " << cloud->size() << " data points." << std::endl;
@@ -93,7 +60,7 @@ int main () {
   seg.setDistanceThreshold (0.02); // 0.02 default
 
   int nr_points = static_cast<int>(cloud_filtered->size());
-  int filter_count = 1;
+  int filter_count = 0;
   // while (cloud_filtered->size () > 0.3 * nr_points) // 0.3 default
   while (filter_count < 1)
   {
@@ -103,7 +70,7 @@ int main () {
     if (inliers->indices.empty())
     {
       std::cout << "Could not estimate a planar model for the given dataset." << std::endl;
-      break;
+      return 1;
     }
 
     // Extract the planar inliers from the input cloud
@@ -132,7 +99,7 @@ int main () {
   pcl::EuclideanClusterExtraction<pcl::PointXYZ> ec;
   ec.setClusterTolerance (0.02); // 2cm == 0.02 default
   ec.setMinClusterSize (100); // 100 default
-  ec.setMaxClusterSize (25000); // 25000 default
+  ec.setMaxClusterSize (250); // 25000 default
   ec.setSearchMethod (tree);
   ec.setInputCloud (cloud_filtered);
   ec.extract (cluster_indices);
@@ -149,7 +116,7 @@ int main () {
   if (cluster_indices.empty())
   {
     std::cout << "No clusters found." << std::endl;
-    return (0);
+    return 1;
   }
   int j = 0;
   for (const auto& cluster : cluster_indices)
@@ -174,5 +141,5 @@ int main () {
     std::cerr << "Failed to execute pcl_viewer command" << std::endl;
   }
 
-  return (0);
+  return 0;
 }
