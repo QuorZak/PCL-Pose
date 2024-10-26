@@ -40,3 +40,7 @@ target_link_libraries(extraction ${PCL_LIBRARIES} realsense2 ${OpenCV_LIBS} ${FL
 # Cluster Extraction executable
 add_executable(extraction_test src/pose_estimation.h src/cluster_extraction_test.cpp)
 target_link_libraries(extraction_test ${PCL_LIBRARIES} realsense2 ${OpenCV_LIBS} ${FLANN_LIBRARIES} ${HDF5_LIBRARIES} ${Boost_LIBRARIES})
+
+# Build tree executable
+add_executable(build_tree src/pose_estimation.h src/build_tree.cpp)
+target_link_libraries(build_tree ${PCL_LIBRARIES} realsense2 ${OpenCV_LIBS} ${FLANN_LIBRARIES} ${HDF5_LIBRARIES} ${Boost_LIBRARIES})

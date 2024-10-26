@@ -8,18 +8,18 @@
 #include <librealsense2/rs.hpp>
 
 void showPdcFile(const int usePclViewer = 0) {
-  const std::string file = "../lab_data/cloud_cluster_0001.pcd";
+  const std::string file = "../lab_data/mustard_small/*.pcd";
 
-  if (usePclViewer == 1) {
-    const std::string command = "pcl_viewer -multiview 1 " + file;
+  if (usePclViewer == 1) { // Show the file
+    const std::string command = "pcl_viewer " + file;
     if (const int result = std::system(command.c_str()); result != 0) {
       std::cerr << "Failed to execute pcl_viewer command" << std::endl;
     }
     return;
   }
 
-  if (usePclViewer == 2) {
-    const std::string command = "pcl_viewer ../data/901.125.07/*.pcd";
+  if (usePclViewer == 2) { // Show all files in a split multiview
+    const std::string command = "pcl_viewer  -multiview 1 " + file;
     if (const int result = std::system(command.c_str()); result != 0) {
       std::cerr << "Failed to execute pcl_viewer command" << std::endl;
     }

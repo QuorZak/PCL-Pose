@@ -25,3 +25,4 @@ Thumbs.db
 # Lab data - For now it changes too often
 /lab_data/
 /output/
+/mustard_small/

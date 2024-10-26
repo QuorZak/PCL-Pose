@@ -24,6 +24,10 @@
 #include <glob.h>
 
 #include <opencv2/opencv.hpp>
+#include <pcl/filters/extract_indices.h>
+#include <pcl/filters/voxel_grid.h>
+#include <pcl/segmentation/extract_clusters.h>
+#include <pcl/segmentation/sac_segmentation.h>
 
 // Define vfh_model type for storing data file name and histogram data
 typedef std::pair<std::string, std::vector<float> > vfh_model;
@@ -38,6 +42,9 @@ inline extern const float depth_filter_max_distance = 1.0f;
 inline extern const int cam_res_width = 848;
 inline extern const int cam_res_height = 480;
 inline extern const int cam_fps = 15;
+
+// Directory for reference models
+inline extern std::string model_directory = "../lab_data/";
 
 // This function takes the width and height of a depth image and returns the x and y start and stop points for cropping
 // The start and stop points are the absolute vales of the start position and stop position of the crop
@@ -446,6 +453,10 @@ inline void showPointClouds(const std::vector<std::string>& created_files) {
   viewer->setBackgroundColor(0, 0, 0);
 
   for (const auto& file : created_files) {
+    if (file.substr(file.find_last_of(".") + 1) != "pcd" || file.find("_vfh.pcd") != std::string::npos) {
+      continue; // Skip non-pcd files and _vfh.pcd files
+    }
+    std::cout << "Loading .pcd file for visualisation: " << file << std::endl;
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
     if (pcl::io::loadPCDFile(file, *cloud) == -1) {
       PCL_ERROR("Couldn't read file %s \n", file.c_str());
@@ -471,4 +482,72 @@ inline std::vector<std::string> globFiles(const std::string& pattern) {
   }
   globfree(&glob_result);
   return files;
+}
+
+// This is the Cluster Extraction code that is common to both the test and the main code
+// It extracts clusters from the point cloud
+inline void filterAndSegmentPointCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud, pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud_filtered,
+  pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud_f, std::vector<pcl::PointIndices>& cluster_indices) {
+
+  // Create the filtering object: down-sample the dataset using a leaf size of 1cm
+  pcl::VoxelGrid<pcl::PointXYZ> vg;
+  vg.setInputCloud(cloud);
+  vg.setLeafSize(0.006f, 0.006f, 0.006f); // 0.01f default
+  vg.filter(*cloud_filtered);
+  std::cout << "PointCloud after filtering has: " << cloud_filtered->size() << " data points." << std::endl;
+
+  // Create the segmentation object for the planar model and set all the parameters
+  pcl::SACSegmentation<pcl::PointXYZ> seg;
+  pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
+  pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
+  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_plane(new pcl::PointCloud<pcl::PointXYZ>());
+  seg.setOptimizeCoefficients(true);
+  seg.setModelType(pcl::SACMODEL_PLANE);
+  seg.setMethodType(pcl::SAC_RANSAC);
+  seg.setMaxIterations(100); // 100 default
+  seg.setDistanceThreshold(0.02); // 0.02 default
+
+  int filter_count = 0;
+  int nr_points = static_cast<int>(cloud_filtered->size());
+
+
+  while (cloud_filtered->size () > 0.3 * nr_points) {
+  // while (filter_count < 1) {
+    // Segment the largest planar component from the remaining cloud
+    seg.setInputCloud(cloud_filtered);
+    seg.segment(*inliers, *coefficients);
+    if (inliers->indices.empty()) {
+      std::cout << "Could not estimate a planar model for the given dataset." << std::endl;
+      return;
+    }
+
+    // Extract the planar inliers from the input cloud
+    pcl::ExtractIndices<pcl::PointXYZ> extract;
+    extract.setInputCloud(cloud_filtered);
+    extract.setIndices(inliers);
+    extract.setNegative(false);
+
+    // Get the points associated with the planar surface
+    extract.filter(*cloud_plane);
+    std::cout << "PointCloud representing the planar component: " << cloud_plane->size() << " data points." << std::endl;
+
+    // Remove the planar inliers, extract the rest
+    extract.setNegative(true);
+    extract.filter(*cloud_f);
+    *cloud_filtered = *cloud_f;
+
+    filter_count++;
+  }
+
+  // Creating the KdTree object for the search method of the extraction
+  pcl::search::KdTree<pcl::PointXYZ>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZ>);
+  tree->setInputCloud(cloud_filtered);
+
+  pcl::EuclideanClusterExtraction<pcl::PointXYZ> ec;
+  ec.setClusterTolerance(0.01); // 2cm == 0.02 default
+  ec.setMinClusterSize(300); // 100 default
+  ec.setMaxClusterSize(1000); // 25000 default
+  ec.setSearchMethod(tree);
+  ec.setInputCloud(cloud_filtered);
+  ec.extract(cluster_indices);
 }

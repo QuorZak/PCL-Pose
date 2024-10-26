@@ -2,7 +2,6 @@
 
 int main(int argc, char** argv) {
     std::string input_name = "capture.pcd";
-    std::string model_directory = "../data";
     std::string output_directory = "../output";
     int k = 6;
     auto thresh = DBL_MAX;
@@ -33,6 +32,7 @@ int main(int argc, char** argv) {
     bool ready = false;
 
     // Start the streamDepthMap function in a separate thread
+    cout << "Starting the streamDepthMap function in a separate thread." << endl;
     std::thread img_thread(stream_point_cloud_show_depth_map, std::ref(pipe), std::ref(output_stream_cloud),
         std::ref(mtx), std::ref(condition_var), std::ref(ready));
 
@@ -45,6 +45,11 @@ int main(int argc, char** argv) {
     }
     // Create a usable pointer to the point cloud
     *pcl_cloud = output_stream_copy;
+
+    // Ensure the point cloud dimensions are set correctly
+    pcl_cloud->width = static_cast<uint32_t>(pcl_cloud->points.size());
+    pcl_cloud->height = 1; // Since this is an unorganised point cloud
+    pcl_cloud->is_dense = false;
 
     // Save the point cloud to a PCD file
     if (pcl_cloud->points.empty()) {
