@@ -61,11 +61,8 @@ void streamDepthMap() {
     auto frames = pipe.wait_for_frames();
     auto depth = frames.get_depth_frame();
 
-    // Implement a depth threshold filter
-    rs2::threshold_filter threshold_filter;
-    threshold_filter.set_option(RS2_OPTION_MIN_DISTANCE, depth_filter_min_distance);
-    threshold_filter.set_option(RS2_OPTION_MAX_DISTANCE, depth_filter_max_distance);
-    depth = threshold_filter.process(depth);
+    // Apply a depth threshold filter
+    depth = apply_threshold_filter(depth);
 
     // Get size of the depth frame
     auto width = depth.get_width();

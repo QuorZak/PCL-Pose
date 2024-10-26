@@ -85,8 +85,8 @@ int main () {
     seg.setMaxIterations (100); // 100 default
     seg.setDistanceThreshold (0.02); // 0.02 default
 
-    int nr_points = static_cast<int>(cloud_filtered->size());
-    int filter_count = 1;
+    // int nr_points = static_cast<int>(cloud_filtered->size());
+    int filter_count = 0;
     // while (cloud_filtered->size () > 0.3 * nr_points) // 0.3 default
     while (filter_count < 1)
     {
@@ -125,18 +125,10 @@ int main () {
     pcl::EuclideanClusterExtraction<pcl::PointXYZ> ec;
     ec.setClusterTolerance (0.02); // 2cm == 0.02 default
     ec.setMinClusterSize (100); // 100 default
-    ec.setMaxClusterSize (25000); // 25000 default
+    ec.setMaxClusterSize (500); // 25000 default
     ec.setSearchMethod (tree);
     ec.setInputCloud (cloud_filtered);
     ec.extract (cluster_indices);
-
-    /*// Clear out all the files in the output folder from the previous run
-    const std::string clear_command = "rm -f " + output_folder + object_name + *.pcd";
-    if (const int result = std::system(clear_command.c_str()); result != 0) {
-      std::cerr << "Failed to execute rm command" << std::endl;
-    } else {
-      std::cout << "Cleared out all the files in the output folder" << std::endl;
-    }*/
 
     // If no clusters are found, output a message
     if (!cluster_indices.empty())

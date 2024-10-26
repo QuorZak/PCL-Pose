@@ -22,12 +22,13 @@
 #include <stack>
 
 #include <opencv2/opencv.hpp>
+#include <utility>
 
 // Define vfh_model type for storing data file name and histogram data
 typedef std::pair<std::string, std::vector<float> > vfh_model;
 
 // Declare global variables that all functions in the .cpp files can access
-inline extern const int image_reduced_to_percentage = 70;
+inline extern const int image_reduced_to_percentage = 60;
 inline extern const float depth_filter_min_distance = 0.5f;
 inline extern const float depth_filter_max_distance = 1.0f;
 
@@ -47,6 +48,14 @@ inline std::tuple<int, int, int, int> get_crop_points(const int width, const int
   return std::make_tuple(x_start, x_stop, y_start, y_stop);
 }
 
+// Apply global threshold filter to the depth frame
+inline rs2::depth_frame apply_threshold_filter(rs2::depth_frame depth) {
+  const rs2::threshold_filter threshold_filter;
+  threshold_filter.set_option(RS2_OPTION_MIN_DISTANCE, depth_filter_min_distance);
+  threshold_filter.set_option(RS2_OPTION_MAX_DISTANCE, depth_filter_max_distance);
+  return threshold_filter.process(std::move(depth));
+}
+
 // Convert the depth frame to a PCL point cloud
 // Allows for optional cropping of the image if crop is set to true
 // The crop is centered around the center of the image
@@ -55,17 +64,14 @@ inline pcl::PointCloud<pcl::PointXYZ>::Ptr depthFrameToPointCloud(rs2::depth_fra
 
   if (filter) {
     // Filter the depth values of the depth frame
-    rs2::threshold_filter threshold_filter;
-    threshold_filter.set_option(RS2_OPTION_MIN_DISTANCE, depth_filter_min_distance);
-    threshold_filter.set_option(RS2_OPTION_MAX_DISTANCE, depth_filter_max_distance);
-    depth = threshold_filter.process(depth);
+    depth = apply_threshold_filter(depth);
   }
 
   // Convert the depth frame to a PCL point cloud
   pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
-  rs2::pointcloud rs_cloud;
-  rs2::points points = rs_cloud.calculate(depth);
-  auto stream_profile = points.get_profile().as<rs2::video_stream_profile>();
+  const rs2::pointcloud rs_cloud;
+  const rs2::points points = rs_cloud.calculate(depth);
+  const auto stream_profile = points.get_profile().as<rs2::video_stream_profile>();
   const int width = stream_profile.width();
   const int height = stream_profile.height();
   cloud->width = width;
@@ -92,7 +98,7 @@ inline pcl::PointCloud<pcl::PointXYZ>::Ptr depthFrameToPointCloud(rs2::depth_fra
   int i = 0;
   for (int y = y_start; y < y_stop; y++) {
     for (int x = x_start; x < x_stop; x++, i++) {
-      int index = y * width + x;
+      const int index = y * width + x;
       cloud->points[i].x = vertices[index].x;
       cloud->points[i].y = -vertices[index].y;
       cloud->points[i].z = -vertices[index].z;
@@ -130,12 +136,21 @@ inline void stream_point_cloud_show_depth_map(rs2::pipeline pipe, pcl::PointClou
 
     auto cloud = depthFrameToPointCloud(depth, true, true);
 
+    // Everything past here is for visualisation only
+    // Same threshold filter as the one that was applied for the point cloud
+    // Same cropping as the one that was applied for the point cloud
+    auto filtered_depth = apply_threshold_filter(depth);
+
+    // Get width and height of the depth frame
+    const auto width = filtered_depth.get_width();
+    const auto height = filtered_depth.get_height();
+
     // Create OpenCV matrix of size (w,h) from the depth frame
-    cv::Mat depth_image(cv::Size(640, 480), CV_16UC1, const_cast<void*>(depth.get_data()), cv::Mat::AUTO_STEP);
+    cv::Mat depth_image(cv::Size(width, height), CV_16UC1, const_cast<void*>(filtered_depth.get_data()), cv::Mat::AUTO_STEP);
 
     // Get crop points using the get_crop_points function
     const auto [x_start, x_stop, y_start, y_stop]
-                = get_crop_points(640, 480, image_reduced_to_percentage);
+                = get_crop_points(width, height, image_reduced_to_percentage);
     cv::Mat cropped_depth_image = depth_image(cv::Rect(x_start, y_start, x_stop - x_start, y_stop - y_start));
 
     // Convert the depth image to CV_8UC1
@@ -164,8 +179,6 @@ inline void stream_point_cloud_show_depth_map(rs2::pipeline pipe, pcl::PointClou
   pipe.stop();
   cv::destroyAllWindows();
 }
-
-
 
 // This function estimates VFH signatures of an input point cloud 
 // Input: File path
