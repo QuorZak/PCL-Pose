@@ -51,7 +51,7 @@ inline extern const int cam_fps = 15;
 // Parameters for cloud filtering
 inline extern const float leaf_size = 0.01f; // 0.01f default
 inline extern const float cluster_tolerance = 0.01f; // 0.02 default
-inline extern const int min_cluster_size = 150; // 100 default
+inline extern const int min_cluster_size = 200; // 100 default
 inline extern const int max_cluster_size = 1000; // 25000 default
 inline extern const float segment_distance_threshold = 0.02f; // 0.02 default
 inline extern const float segment_probability = 0.99f; // try 0.99 ? Increase the probability to get a good sample
@@ -556,6 +556,9 @@ inline void showPointClouds(const std::vector<std::string>& created_files) {
     viewer->addPointCloud<pcl::PointXYZ>(cloud, pcd_file);
     viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 5, pcd_file); // Increase point size
   }
+
+  // Add coordinate axes to the viewer
+  viewer->addCoordinateSystem(0.1); // The size of the axes
 
   while (!viewer->wasStopped()) {
     viewer->spinOnce(100);

@@ -1,52 +1,42 @@
 #include "pose_estimation.h"
 #include <pcl/common/transforms.h>
 #include <librealsense2/rs.hpp> // Include RealSense Cross Platform API
+#include <pcl/common/centroid.h>
 
 int main() {
   const std::string test_name = "test";
   const std::string output_folder = "../lab_data/test/";
-  // Define the angle (in degrees) that the object is facing
-  float object_facing_angle = 45.0f; // Change this each capture
+  const float object_facing_angle = 0.0f; // Change this each capture
 
-  // Initialise the Realsense pipeline
   rs2::pipeline pipe;
   rs2::config config;
   config.enable_stream(RS2_STREAM_DEPTH, cam_res_width, cam_res_height, RS2_FORMAT_Z16, cam_fps); // Use global parameters
   config.enable_stream(RS2_STREAM_ACCEL, RS2_FORMAT_MOTION_XYZ32F);
-  config.enable_stream(RS2_STREAM_GYRO, RS2_FORMAT_MOTION_XYZ32F);
   pipe.start(config);
 
-  // Initialise the filters which will be applied to the depth frame
   initialise_filters();
 
-  // Camera warmup - dropping several first frames to let auto-exposure stabilize
   for (int i = 0; i < 100; i++) {
-    // Wait for all configured streams to produce a frame
     auto frames = pipe.wait_for_frames(); // purposely does nothing with the frames
   }
 
-  // Capture a frame
   rs2::frameset frames = pipe.wait_for_frames();
   rs2::frame depth = frames.get_depth_frame();
   depth = apply_post_processing_filters(depth);
 
-  // Get gyroscopic data
-  rs2::motion_frame gyro_frame = frames.first_or_default(RS2_STREAM_GYRO);
-  rs2_vector gyro_data = gyro_frame.get_motion_data();
+  rs2::motion_frame accel_frame = frames.first_or_default(RS2_STREAM_ACCEL);
+  rs2_vector accel_data = accel_frame.get_motion_data();
 
-  // Convert the depth frame to a PCL point cloud
   pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
   cloud = depthFrameToPointCloud(depth, true);
 
   pipe.stop();
   std::cout << "PointCloud captured from Realsense camera has: " << cloud->size() << " data points." << std::endl;
 
-  // Call the extracted function
   pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered(new pcl::PointCloud<pcl::PointXYZ>);
   std::vector<pcl::PointIndices> cluster_indices;
   filterAndSegmentPointCloud(cloud, cloud_filtered, cluster_indices, true);
 
-  // Clear out all the files in the output folder from the previous run
   const std::string clear_command = "rm -f " + output_folder + test_name + "_*.pcd";
   if (const int result = std::system(clear_command.c_str()); result != 0) {
     std::cerr << "Failed to execute rm command" << std::endl;
@@ -54,7 +44,6 @@ int main() {
     std::cout << "Cleared out all the files in the output folder" << std::endl;
   }
 
-  // If no clusters are found, output a message
   if (cluster_indices.empty()) {
     std::cout << "No clusters found." << std::endl;
     return 1;
@@ -71,30 +60,39 @@ int main() {
     cloud_cluster->height = 1;
     cloud_cluster->is_dense = true;
 
-    // Define the forward direction based on the provided angle
-    Eigen::Matrix3f object_rotation;
-    object_rotation = Eigen::AngleAxisf(object_facing_angle * M_PI / 180.0f, Eigen::Vector3f::UnitY());
+    Eigen::Vector4f centroid;
+    pcl::compute3DCentroid(*cloud_cluster, centroid);
 
-    // Create a rotation matrix from the gyroscopic data
-    Eigen::Matrix3f rotation_matrix;
-    rotation_matrix = Eigen::AngleAxisf(gyro_data.z, Eigen::Vector3f::UnitZ()) *
-                      Eigen::AngleAxisf(gyro_data.y, Eigen::Vector3f::UnitY()) *
-                      Eigen::AngleAxisf(gyro_data.x, Eigen::Vector3f::UnitX());
+    Eigen::Affine3f transform = Eigen::Affine3f::Identity();
+    transform.translation() << -centroid[0], -centroid[1], -centroid[2];
+    pcl::transformPointCloud(*cloud_cluster, *cloud_cluster, transform);
 
-    // Align the y-direction of the object cloud with the y-direction in the real world (gravity)
-    Eigen::Vector3f gravity_direction(0.0f, 1.0f, 0.0f);
-    Eigen::Vector3f object_y_direction = rotation_matrix * gravity_direction;
+    // TODO: Figure out this object rotation a bit better
+    Eigen::Matrix3f object_rotation; // Some - and + values to get 0 to be approximately directly away from the camera
+    object_rotation = Eigen::AngleAxisf(M_PI * (object_facing_angle+90) / -180.0f, Eigen::Vector3f::UnitY());
 
-    // Combine the rotations
-    Eigen::Matrix3f combined_rotation = object_rotation * rotation_matrix;
+    Eigen::Vector3f gravity_direction(accel_data.x, accel_data.y, accel_data.z);
+    gravity_direction.normalize();
 
-    // Set the new pose
+    // Calculate the angle between the y-axis and the gravity direction
+    Eigen::Vector3f y_axis = Eigen::Vector3f::UnitY();
+    float angle = acos(y_axis.dot(gravity_direction));
+
+    // Subtract the angle from the gravity direction
+    Eigen::Quaternionf rotation_quat = Eigen::Quaternionf(Eigen::AngleAxisf(-angle, y_axis.cross(gravity_direction).normalized()));
+    Eigen::Matrix3f align_rotation = rotation_quat.toRotationMatrix();
+
+    // Apply the inverse of the resulting transformation to the point cloud
     Eigen::Matrix4f new_pose = Eigen::Matrix4f::Identity();
-    new_pose.block<3, 3>(0, 0) = combined_rotation;
-    new_pose.block<3, 1>(0, 1) = object_y_direction.normalized();
-    new_pose.block<3, 1>(0, 0) = object_y_direction.cross(combined_rotation.col(2)).normalized();
-    // Transform the point cloud using the new pose
-    transformPointCloud(*cloud_cluster, *cloud_cluster, new_pose);
+    new_pose.block<3, 3>(0, 0) = -align_rotation;
+
+    // Now that the y direction is set, we can rotate the object to face the camera
+    new_pose.block<3, 3>(0, 0) = object_rotation * new_pose.block<3, 3>(0, 0);
+
+    // The x-axis can be set to the cross product of the y-axis and z-axis
+    new_pose.block<3, 1>(0, 0) = new_pose.block<3, 1>(0, 1).cross(new_pose.block<3, 1>(0, 2));
+
+    pcl::transformPointCloud(*cloud_cluster, *cloud_cluster, new_pose);
 
     std::cout << "PointCloud representing the Cluster: " << cloud_cluster->size() << " data points." << std::endl;
     std::stringstream ss;
@@ -106,7 +104,6 @@ int main() {
   const std::string files_to_show_pattern = output_folder + test_name + "_*.pcd";
   std::vector<std::string> files_to_show = globFiles(files_to_show_pattern);
 
-  // Display the results to review
   showPointClouds(files_to_show);
 
   return 0;
