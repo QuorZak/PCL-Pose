@@ -1,4 +1,6 @@
 #include "pose_estimation.h"
+#include <pcl/common/transforms.h>
+#include <librealsense2/rs.hpp> // Include RealSense Cross Platform API
 
 int main() {
   const std::string test_name = "test";
@@ -10,6 +12,8 @@ int main() {
   rs2::pipeline pipe;
   rs2::config config;
   config.enable_stream(RS2_STREAM_DEPTH, cam_res_width, cam_res_height, RS2_FORMAT_Z16, cam_fps); // Use global parameters
+  config.enable_stream(RS2_STREAM_ACCEL, RS2_FORMAT_MOTION_XYZ32F);
+  config.enable_stream(RS2_STREAM_GYRO, RS2_FORMAT_MOTION_XYZ32F);
   pipe.start(config);
 
   // Initialise the filters which will be applied to the depth frame
@@ -25,6 +29,10 @@ int main() {
   rs2::frameset frames = pipe.wait_for_frames();
   rs2::frame depth = frames.get_depth_frame();
   depth = apply_post_processing_filters(depth);
+
+  // Get gyroscopic data
+  rs2::motion_frame gyro_frame = frames.first_or_default(RS2_STREAM_GYRO);
+  rs2_vector gyro_data = gyro_frame.get_motion_data();
 
   // Convert the depth frame to a PCL point cloud
   pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
@@ -63,11 +71,28 @@ int main() {
     cloud_cluster->height = 1;
     cloud_cluster->is_dense = true;
 
-    // Set the front direction of the point cloud
-    Eigen::Matrix4f initial_pose = Eigen::Matrix4f::Identity();
-    Eigen::Vector3f forward_direction(0.0f, 0.0f, 1.0f);
-    Eigen::Matrix4f new_pose = setFrontDirection(initial_pose, forward_direction, object_facing_angle);
+    // Define the forward direction based on the provided angle
+    Eigen::Matrix3f object_rotation;
+    object_rotation = Eigen::AngleAxisf(object_facing_angle * M_PI / 180.0f, Eigen::Vector3f::UnitY());
 
+    // Create a rotation matrix from the gyroscopic data
+    Eigen::Matrix3f rotation_matrix;
+    rotation_matrix = Eigen::AngleAxisf(gyro_data.z, Eigen::Vector3f::UnitZ()) *
+                      Eigen::AngleAxisf(gyro_data.y, Eigen::Vector3f::UnitY()) *
+                      Eigen::AngleAxisf(gyro_data.x, Eigen::Vector3f::UnitX());
+
+    // Align the y-direction of the object cloud with the y-direction in the real world (gravity)
+    Eigen::Vector3f gravity_direction(0.0f, 1.0f, 0.0f);
+    Eigen::Vector3f object_y_direction = rotation_matrix * gravity_direction;
+
+    // Combine the rotations
+    Eigen::Matrix3f combined_rotation = object_rotation * rotation_matrix;
+
+    // Set the new pose
+    Eigen::Matrix4f new_pose = Eigen::Matrix4f::Identity();
+    new_pose.block<3, 3>(0, 0) = combined_rotation;
+    new_pose.block<3, 1>(0, 1) = object_y_direction.normalized();
+    new_pose.block<3, 1>(0, 0) = object_y_direction.cross(combined_rotation.col(2)).normalized();
     // Transform the point cloud using the new pose
     transformPointCloud(*cloud_cluster, *cloud_cluster, new_pose);
 
