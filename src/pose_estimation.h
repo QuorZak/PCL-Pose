@@ -11,6 +11,11 @@
 #include <pcl/visualization/pcl_visualizer.h>
 #include <pcl/features/vfh.h>
 #include <pcl/features/normal_3d.h>
+#include <pcl/filters/extract_indices.h>
+#include <pcl/filters/voxel_grid.h>
+#include <pcl/segmentation/extract_clusters.h>
+#include <pcl/segmentation/sac_segmentation.h>
+#include <pcl/registration/icp.h>
 
 #include <boost/filesystem.hpp>
 #include <flann/flann.h>
@@ -22,12 +27,12 @@
 #include <condition_variable>
 #include <stack>
 #include <glob.h>
+#include <Eigen/Dense>
+#include <cmath>
+#include <chrono>
 
 #include <opencv2/opencv.hpp>
-#include <pcl/filters/extract_indices.h>
-#include <pcl/filters/voxel_grid.h>
-#include <pcl/segmentation/extract_clusters.h>
-#include <pcl/segmentation/sac_segmentation.h>
+#include <opencv2/imgproc/imgproc.hpp>
 
 // Define vfh_model type for storing data file name and histogram data
 typedef std::pair<std::string, std::vector<float> > vfh_model;
@@ -46,12 +51,29 @@ inline extern const int cam_fps = 15;
 // Parameters for cloud filtering
 inline extern const float leaf_size = 0.01f; // 0.01f default
 inline extern const float cluster_tolerance = 0.01f; // 0.02 default
-inline extern const int min_cluster_size = 200; // 100 default
-inline extern const int max_cluster_size = 10000; // 25000 default
+inline extern const int min_cluster_size = 150; // 100 default
+inline extern const int max_cluster_size = 1000; // 25000 default
 inline extern const float segment_distance_threshold = 0.02f; // 0.02 default
 inline extern const float segment_probability = 0.99f; // try 0.99 ? Increase the probability to get a good sample
 inline extern const float segment_radius_min = 0.01f; // try 0.01 ? Set radius limits to avoid collinear points
 inline extern const float segment_radius_max = 0.1f; // try 0.1 ?
+
+// Parameters for Pose Estimation
+inline extern int icp_max_iterations = 50; // Maximum number of ICP iterations
+inline extern float icp_transformation_epsilon = 1e-8; // Transformation epsilon for ICP convergence
+inline extern float icp_euclidean_fitness_epsilon = 1; // Euclidean fitness epsilon for ICP convergence
+
+// Parameters for Pose Manager
+inline extern float start_scale_distance = 0.01f; // Start distance for scaling in m
+inline extern float stop_scale_distance = 0.5f; // Stop distance for scaling in m
+enum class PoseUpdateStabilityFactor {
+  VeryWilling = 1,
+  Willing = 2,
+  Linear = 3,
+  Resistant = 4,
+  VeryResistant = 5
+};
+inline extern PoseUpdateStabilityFactor stability_factor = PoseUpdateStabilityFactor::Resistant;
 
 // Directory for reference models
 inline extern std::string model_directory = "../lab_data/"; // "../lab_data/";
@@ -107,7 +129,7 @@ inline rs2::depth_frame apply_post_processing_filters(rs2::depth_frame depth) {
 // Allows for optional cropping of the image if crop is set to true
 // The crop is centered around the center of the image
 inline pcl::PointCloud<pcl::PointXYZ>::Ptr depthFrameToPointCloud(const rs2::depth_frame& depth, const bool crop = false) {
-  // Convert the depth frame to a PCL point cloud
+  // Convert depth frame to a PCL point cloud
   pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
   const rs2::pointcloud rs_cloud;
   const rs2::points points = rs_cloud.calculate(depth);
@@ -227,100 +249,44 @@ inline void filterAndSegmentPointCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr
   ec.extract(cluster_indices);
 }
 
-inline void stream_point_cloud_show_depth_map(rs2::pipeline pipe, pcl::PointCloud<pcl::PointXYZ>::Ptr &output_stream_cloud,
-  std::shared_ptr<std::vector<pcl::PointIndices>> &output_cluster_indices, std::mutex &mtx, std::condition_variable &cv, bool &ready) {
 
-  // Add a stream with its parameters
-  rs2::config config;
-  config.enable_stream(RS2_STREAM_DEPTH, cam_res_width, cam_res_height, RS2_FORMAT_Z16, cam_fps);
-
-  // Instruct pipeline to start streaming with the requested configuration
-  rs2::pipeline_profile profile = pipe.start(config);
-
-  // Set up the variables necessary for the filterAndSegmentPointCloud function
-  pcl::PointCloud<pcl::PointXYZ>::Ptr filtered_cloud_clusters(new pcl::PointCloud<pcl::PointXYZ>);
-  std::vector<pcl::PointIndices> cluster_indices;
-
-  // Initialise the filters which will be applied to the depth frame
-  initialise_filters();
-
-  // Camera warmup - dropping several first frames to let auto-exposure stabilize
-  for (int i = 0; i < 100; i++) {
-      // Wait for all configured streams to produce a frame
-      auto frames = pipe.wait_for_frames(); // purposely does nothing with the frames
-  }
-
+[[noreturn]] inline void processPointCloud(const rs2::pipeline& pipeline,
+  pcl::PointCloud<pcl::PointXYZ>::Ptr& output_stream_cloud,const std::shared_ptr<std::vector<pcl::PointIndices>>& cluster_indices,
+  std::mutex& mtx, std::condition_variable& cv, bool& ready)
+{
   while (true) {
-    // Wait for the next set of frames from the camera
-    auto frames = pipe.wait_for_frames();
-
-    // Get a frame from the depth stream
-    auto depth = frames.get_depth_frame();
-    // Filter the depth values of the depth frame
+    auto frames = pipeline.wait_for_frames();
+    const auto depth = frames.get_depth_frame();
     rs2::depth_frame filtered_depth = apply_post_processing_filters(depth);
+    auto cloud = depthFrameToPointCloud(filtered_depth, true);
+    pcl::PointCloud<pcl::PointXYZ>::Ptr filtered_cloud_clusters(new pcl::PointCloud<pcl::PointXYZ>);
+    std::vector<pcl::PointIndices> cluster_indices_local;
+    filterAndSegmentPointCloud(cloud, filtered_cloud_clusters, cluster_indices_local);
 
-    // Convert the depth frame to a point cloud and store it in the output_stream_cloud
-    // This will be the shared resource between the threads
-    auto cloud = depthFrameToPointCloud(depth, true);
-    // Process the point cloud to get the object cluster
-    filterAndSegmentPointCloud(cloud, filtered_cloud_clusters, cluster_indices);
-
-    // Extract the object cluster from the point cloud
-    if (cluster_indices.empty()) {
+    if (cluster_indices_local.empty()) {
       std::cout << "No clusters found." << std::endl;
       continue;
     }
 
-    // Lock the mutex and update the shared output_stream_cloud and list of clusters
     {
       std::lock_guard<std::mutex> lock(mtx);
       output_stream_cloud = filtered_cloud_clusters;
-      *output_cluster_indices = cluster_indices;
+      *cluster_indices = cluster_indices_local;
       ready = true;
     }
     cv.notify_one();
-
-    //////////////// Everything past here is for visualisation only ////////////////
-    // Get width and height of the depth frame
-    const auto width = filtered_depth.get_width();
-    const auto height = filtered_depth.get_height();
-
-    // Create OpenCV matrix of size (w,h) from the depth frame
-    cv::Mat depth_image(cv::Size(width, height), CV_16UC1, const_cast<void*>(filtered_depth.get_data()), cv::Mat::AUTO_STEP);
-
-    // Get crop points using the get_crop_points function
-    const auto [x_start, x_stop, y_start, y_stop]
-                = get_crop_points(width, height, image_reduced_to_percentage);
-    cv::Mat cropped_depth_image = depth_image(cv::Rect(x_start, y_start, x_stop - x_start, y_stop - y_start));
-
-    // Convert the depth image to CV_8UC1
-    cv::Mat depth_image_8u;
-    cropped_depth_image.convertTo(depth_image_8u, CV_8UC1, 255.0 / 10000); // Scale the depth values to 8-bit
-
-    // Apply colormap on depth image
-    cv::Mat depth_colormap;
-    cv::applyColorMap(depth_image_8u, depth_colormap, cv::COLORMAP_JET);
-
-    // Display the depth map
-    cv::imshow("Depth Map Stream", depth_colormap);
-    if (cv::waitKey(1) >= 0) {
-        break;
-    }
   }
-  // Stop the pipeline
-  pipe.stop();
-  cv::destroyAllWindows();
 }
 
-// This function estimates VFH signatures of an input point cloud 
+// This function estimates VFH signatures of an input point cloud
 // Input: File path
 // Output: VFH signature of the object
 inline void estimate_VFH(const pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud, pcl::PointCloud <pcl::VFHSignature308> &signature)
 {
-  pcl::PointCloud<pcl::Normal>::Ptr normals (new pcl::PointCloud<pcl::Normal> ());
-  
+  const pcl::PointCloud<pcl::Normal>::Ptr normals (new pcl::PointCloud<pcl::Normal> ());
+
   // Estimate point cloud normals
-  pcl::search::KdTree<pcl::PointXYZ>::Ptr normalTree (new pcl::search::KdTree<pcl::PointXYZ> ());
+  const pcl::search::KdTree<pcl::PointXYZ>::Ptr normalTree (new pcl::search::KdTree<pcl::PointXYZ> ());
   pcl::NormalEstimation<pcl::PointXYZ, pcl::Normal> ne;
   ne.setInputCloud (cloud);
   ne.setSearchMethod (normalTree);
@@ -352,7 +318,7 @@ inline bool checkVFH(const boost::filesystem::path &path)
     int type; unsigned int idx;
     r.readHeader (path.string (), cloud, origin, orientation, version, type, idx);
 
-	// Check if there is VFH field in the cloud header
+ // Check if there is VFH field in the cloud header
     if (const int vfh_idx = pcl::getFieldIndex(cloud, "vfh"); vfh_idx == -1)
       return (false);
     if (static_cast<int>(cloud.width) * cloud.height != 1)
@@ -462,7 +428,7 @@ inline void replace_last(std::string& str, const std::string& from, const std::s
 // This function visualizes given k point cloud arguments on a PCL_Viewer
 // It shows distances of candidates from the query object at the left bottom corner of each window
 // If the distance is smaller than a given threshold then the distances are shown in green, else they are shown in red
-// Inputs: Main function arguments, candidate count (k), threshold value, vfh_model vector that contains VFH signatures 
+// Inputs: Main function arguments, candidate count (k), threshold value, vfh_model vector that contains VFH signatures
 // from the data set, indices of candidates and distances of candidates
 inline void visualise(int argc, char** argv, int k, double thresh, std::vector<vfh_model> models, flann::Matrix<int> k_indices, flann::Matrix<float> k_distances)
 {
@@ -472,16 +438,16 @@ inline void visualise(int argc, char** argv, int k, double thresh, std::vector<v
   int x_s = y_s + static_cast<int>(ceil((k / static_cast<double>(y_s)) - y_s));
   auto x_step = 1 / static_cast<double>(x_s);
   auto y_step = 1 / static_cast<double>(y_s);
-  pcl::console::print_highlight ("Preparing to load "); 
-  pcl::console::print_value ("%d", k); 
-  pcl::console::print_info (" files ("); 
-  pcl::console::print_value ("%d", x_s);    
-  pcl::console::print_info ("x"); 
-  pcl::console::print_value ("%d", y_s); 
+  pcl::console::print_highlight ("Preparing to load ");
+  pcl::console::print_value ("%d", k);
+  pcl::console::print_info (" files (");
+  pcl::console::print_value ("%d", x_s);
+  pcl::console::print_info ("x");
+  pcl::console::print_value ("%d", y_s);
   pcl::console::print_info (" / ");
-  pcl::console::print_value ("%f", x_step); 
-  pcl::console::print_info ("x"); 
-  pcl::console::print_value ("%f", y_step); 
+  pcl::console::print_value ("%f", x_step);
+  pcl::console::print_info ("x");
+  pcl::console::print_value ("%f", y_step);
   pcl::console::print_info (")\n");
 
   int viewport = 0, l = 0, m = 0;
@@ -510,10 +476,10 @@ inline void visualise(int argc, char** argv, int k, double thresh, std::vector<v
     if (cloud_xyz.points.empty())
       break;
 
-    pcl::console::print_info ("[done, "); 
+    pcl::console::print_info ("[done, ");
     pcl::console::print_value ("%d", static_cast<int>(cloud_xyz.points.size()));
     pcl::console::print_info (" points]\n");
-    pcl::console::print_info ("Available dimensions: "); 
+    pcl::console::print_info ("Available dimensions: ");
     pcl::console::print_value ("%s\n", pcl::getFieldsList (cloud).c_str ());
 
     // Demean the cloud
@@ -523,7 +489,7 @@ inline void visualise(int argc, char** argv, int k, double thresh, std::vector<v
     pcl::demeanPointCloud<pcl::PointXYZ> (cloud_xyz, centroid, *cloud_xyz_demean);
     // Add to renderer*
     p.addPointCloud (cloud_xyz_demean, cloud_name, viewport);
-    
+
     // Check if the model found is within our inlier tolerance
     std::stringstream ss;
     ss << k_distances[0][i];
@@ -597,6 +563,26 @@ inline void showPointClouds(const std::vector<std::string>& created_files) {
   }
 }
 
+// Function to set the front direction of the point cloud
+inline Eigen::Matrix4f setFrontDirection(const Eigen::Matrix4f& pose, const Eigen::Vector3f& forward_direction, float angle_degrees) {
+  Eigen::Matrix4f new_pose = pose;
+
+  // Convert the angle from degrees to radians
+  const float angle_radians = M_PI * angle_degrees / 180.0f;
+
+  // Create a rotation matrix around the Y-axis (assuming Y is up)
+  Eigen::Matrix3f rotation;
+  rotation = Eigen::AngleAxisf(angle_radians, Eigen::Vector3f::UnitY());
+
+  // Apply the rotation to the forward direction
+  Eigen::Vector3f rotated_forward_direction = rotation * forward_direction.normalized();
+
+  // Set the Z-axis to the rotated forward direction
+  new_pose.block<3, 1>(0, 2) = rotated_forward_direction;
+
+  return new_pose;
+}
+
 // Function to get all files matching a pattern
 inline std::vector<std::string> globFiles(const std::string& pattern) {
   glob_t glob_result;
@@ -607,4 +593,96 @@ inline std::vector<std::string> globFiles(const std::string& pattern) {
   }
   globfree(&glob_result);
   return files;
+}
+
+/////////////// BELOW IS THE POSE ESTIMATION SPECIFIC CODE ///////////////
+class PoseManager {
+public:
+  PoseManager() : stored_pose(Eigen::Matrix4f::Identity()) {}
+
+  void updatePose(const Eigen::Matrix4f& new_pose) {
+    const float distance = (stored_pose.block<3, 1>(0, 3) - new_pose.block<3, 1>(0, 3)).norm();
+    const float update_factor = calculateUpdateFactor(distance);
+
+    stored_pose = update_factor * new_pose + (1.0f - update_factor) * stored_pose;
+  }
+
+  [[nodiscard]] Eigen::Matrix4f getPose() const {
+    return stored_pose;
+  }
+
+private:
+  Eigen::Matrix4f stored_pose;
+
+  static float calculateUpdateFactor(const float distance) {
+    if (distance < start_scale_distance) {
+      return 1.0f;
+    } else if (distance > stop_scale_distance) {
+      return 0.05f;
+    } else {
+      const auto scale = static_cast<float>(stability_factor);
+      const float normalized_distance = (distance - start_scale_distance) / (stop_scale_distance - start_scale_distance);
+      return 1.0f - std::pow(normalized_distance, scale) * (1.0f - 0.05f);
+    }
+  }
+};
+
+// Helper function to transform a point using the pose matrix
+inline cv::Point3f transformPoint(const Eigen::Matrix4f& pose, const cv::Point3f& point) {
+  const Eigen::Vector4f point_homogeneous(point.x, point.y, point.z, 1.0);
+  Eigen::Vector4f point_transformed = pose * point_homogeneous;
+  return {point_transformed.x(), point_transformed.y(), point_transformed.z()};
+}
+
+// Helper function to project a 3D point to 2D image point
+inline cv::Point2f projectPoint(const cv::Point3f& point, const rs2_intrinsics& intrinsics) {
+  float x_2d = intrinsics.fx * point.x / point.z + intrinsics.ppx;
+  float y_2d = intrinsics.fy * point.y / point.z + intrinsics.ppy;
+  return {x_2d, y_2d};
+}
+
+// Function to estimate the pose of the object
+inline Eigen::Matrix4f estimatePose(const pcl::PointCloud<pcl::PointXYZ>::Ptr& scene_cloud,
+  const pcl::PointCloud<pcl::PointXYZ>::Ptr& model_cloud) {
+
+  pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> icp;
+  icp.setInputSource(model_cloud);
+  icp.setInputTarget(scene_cloud);
+  icp.setMaximumIterations(icp_max_iterations);
+  icp.setTransformationEpsilon(icp_transformation_epsilon);
+  icp.setEuclideanFitnessEpsilon(icp_euclidean_fitness_epsilon);
+  pcl::PointCloud<pcl::PointXYZ> Final;
+  icp.align(Final);
+
+  if (icp.hasConverged()) {
+    return icp.getFinalTransformation();
+  } else {
+    return Eigen::Matrix4f::Identity();
+  }
+}
+
+// Function to display the coordinate system on top of the video feed
+inline void displayCoordinateSystem(const Eigen::Matrix4f& pose, cv::Mat& frame, const rs2_intrinsics& intrinsics) {
+  // Define the origin and axes in the object coordinate system
+  const cv::Point3f origin(0, 0, 0);
+  const cv::Point3f x_axis(0.1, 0, 0);
+  const cv::Point3f y_axis(0, 0.1, 0);
+  const cv::Point3f z_axis(0, 0, 0.1);
+
+  // Transform the axes to the camera coordinate system
+  const cv::Point3f origin_transformed = transformPoint(pose, origin);
+  const cv::Point3f x_axis_transformed = transformPoint(pose, x_axis);
+  const cv::Point3f y_axis_transformed = transformPoint(pose, y_axis);
+  const cv::Point3f z_axis_transformed = transformPoint(pose, z_axis);
+
+  // Project the 3D points to 2D image points
+  const cv::Point2f origin_2d = projectPoint(origin_transformed, intrinsics);
+  const cv::Point2f x_axis_2d = projectPoint(x_axis_transformed, intrinsics);
+  const cv::Point2f y_axis_2d = projectPoint(y_axis_transformed, intrinsics);
+  const cv::Point2f z_axis_2d = projectPoint(z_axis_transformed, intrinsics);
+
+  // Draw the coordinate system on the frame
+  cv::line(frame, origin_2d, x_axis_2d, cv::Scalar(0, 0, 255), 3); // X-axis in red
+  cv::line(frame, origin_2d, y_axis_2d, cv::Scalar(0, 255, 0), 3); // Y-axis in green
+  cv::line(frame, origin_2d, z_axis_2d, cv::Scalar(255, 0, 0), 3); // Z-axis in blue
 }

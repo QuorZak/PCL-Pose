@@ -4,8 +4,6 @@
 #include <pcl/io/pcd_io.h>
 #include <pcl/point_types.h>
 #include <pcl/console/print.h>
-#include <opencv2/opencv.hpp>
-#include <librealsense2/rs.hpp>
 
 void showPdcFile(const int usePclViewer = 0) {
   const std::string file = "../lab_data/mustard_small/*.pcd";
@@ -94,32 +92,10 @@ void streamDepthMap() {
   cv::destroyAllWindows();
 }
 
-void stream_point_cloud()
-{
-  // this function calls the stream_point_cloud_show_depth_map function just to test the video stream
-  // Do nothing with the point cloud
-  rs2::pipeline pipe;
-  pcl::PointCloud<pcl::PointXYZ>::Ptr output_stream_cloud(new pcl::PointCloud<pcl::PointXYZ>);
-  std::mutex mtx;
-  std::condition_variable condition_var;
-  bool ready = false;
-
-  std::thread img_thread(stream_point_cloud_show_depth_map, std::ref(pipe), std::ref(output_stream_cloud),
-      std::ref(mtx), std::ref(condition_var), std::ref(ready));
-
-  {
-    std::unique_lock<std::mutex> lock(mtx);
-    condition_var.wait(lock, [&ready] { return ready; });
-  }
-  // wait for the thread to finish
-  img_thread.join();
-}
-
 int main() {
   //showPdcFile(1);
 
   //streamDepthMap();
 
-  stream_point_cloud();
   return 0;
 }

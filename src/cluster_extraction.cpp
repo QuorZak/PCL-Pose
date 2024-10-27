@@ -10,6 +10,8 @@
 int main () {
   const std::string object_name = "spray_bottle_tall";
   const std::string output_folder = "../lab_data/" + object_name + "/";
+  // Define the angle (in degrees) that the object is facing
+  float object_facing_angle = 0.0f; // Change this each capture
 
   // Get the highest file number
   int file_num = 0;
@@ -78,6 +80,14 @@ int main () {
         cloud_cluster->width = cloud_cluster->size();
         cloud_cluster->height = 1;
         cloud_cluster->is_dense = true;
+
+        // Set the front direction of the point cloud
+        Eigen::Matrix4f initial_pose = Eigen::Matrix4f::Identity();
+        Eigen::Vector3f forward_direction(0.0f, 0.0f, 1.0f);
+        Eigen::Matrix4f new_pose = setFrontDirection(initial_pose, forward_direction, object_facing_angle);
+
+        // Transform the point cloud using the new pose
+        transformPointCloud(*cloud_cluster, *cloud_cluster, new_pose);
 
         // Save the point cloud
         std::cout << "PointCloud representing the Cluster: " << cloud_cluster->size() << " data points." << std::endl;

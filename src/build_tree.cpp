@@ -7,6 +7,7 @@
 typedef std::pair<std::string, std::vector<float> > vfh_model;
 
 /** \brief Loads an n-D histogram file as a VFH signature
+  * \param base_dir the directory containing the VFH models
   * \param path the input file name
   * \param vfh the resultant VFH model
   */

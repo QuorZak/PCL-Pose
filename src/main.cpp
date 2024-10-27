@@ -10,79 +10,65 @@ int main(int argc, char** argv) {
     flann::Matrix<int> k_indices;
     flann::Matrix<float> k_distances;
 
-    pcl::PointCloud<pcl::Normal> normals;
-    pcl::PointCloud<pcl::VFHSignature308> vfh_descriptors;
-
-    // Parse console inputs
     pcl::console::parse_argument(argc, argv, "-i", input_name);
     pcl::console::parse_argument(argc, argv, "-m", model_directory);
     pcl::console::parse_argument(argc, argv, "-k", k);
     pcl::console::parse_argument(argc, argv, "-t", thresh);
 
     rs2::pipeline pipeline;
-    rs2::frame depth;
-    rs2::points points;
+    rs2::config cfg;
+    cfg.enable_stream(RS2_STREAM_COLOR, cam_res_width, cam_res_height, RS2_FORMAT_BGR8, cam_fps);
+    cfg.enable_stream(RS2_STREAM_DEPTH, cam_res_width, cam_res_height, RS2_FORMAT_Z16, cam_fps);
+    pipeline.start(cfg);
 
-    rs2::pipeline pipe;
+    auto profile = pipeline.get_active_profile();
+    auto video_stream = profile.get_stream(RS2_STREAM_COLOR).as<rs2::video_stream_profile>();
+    auto intrinsics = video_stream.get_intrinsics();
+
+    for (int i = 0; i < 100; i++) {
+        auto frames = pipeline.wait_for_frames();
+    }
+
     pcl::PointCloud<pcl::PointXYZ>::Ptr output_stream_cloud(new pcl::PointCloud<pcl::PointXYZ>);
-    pcl::PointCloud<pcl::PointXYZ> output_stream_copy;
-    pcl::PointCloud<pcl::PointXYZ> cloud_of_clusters; // Changed to object
     std::shared_ptr<std::vector<pcl::PointIndices>> cluster_indices(new std::vector<pcl::PointIndices>);
-    std::vector<pcl::PointIndices> cluster_indices_copy;
-
-    pcl::PointCloud<pcl::PointXYZ>::Ptr chosen_object_cloud(new pcl::PointCloud<pcl::PointXYZ>);
-
     std::mutex mtx;
     std::condition_variable condition_var;
     bool ready = false;
 
-    // Start the streamDepthMap function in a separate thread
-    cout << "Starting the point cloud streaming thread." << endl;
-    std::thread img_thread(stream_point_cloud_show_depth_map, std::ref(pipe), std::ref(output_stream_cloud),
-        std::ref(cluster_indices), std::ref(mtx), std::ref(condition_var), std::ref(ready));
+    std::thread processing_thread(processPointCloud, std::ref(pipeline), std::ref(output_stream_cloud), std::ref(cluster_indices), std::ref(mtx), std::ref(condition_var), std::ref(ready));
 
-    // While camera is initialising, load vfh model data
     load_vfh_model_data(model_directory, models);
 
-    // Convert data into FLANN format
-    flann::Matrix<float> data(new float[models.size() * models[0].second.size()],
-        models.size(), models[0].second.size());
-
+    flann::Matrix<float> data(new float[models.size() * models[0].second.size()], models.size(), models[0].second.size());
     for (size_t i = 0; i < data.rows; ++i)
         for (size_t j = 0; j < data.cols; ++j)
             data[i][j] = models[i].second[j];
 
-    // Place data in FLANN K-d tree
     flann::Index<flann::ChiSquareDistance<float>> index(data, flann::LinearIndexParams());
     index.buildIndex();
 
+    PoseManager pose_manager;
+
     while (true) {
-        // Wait for the first available output Realsense cloud
         {
             std::unique_lock<std::mutex> lock(mtx);
             condition_var.wait(lock, [&ready] { return ready; });
-            // Once the lock is acquired, copy the output stream cloud to the pcl cloud
-            output_stream_copy = *output_stream_cloud;
-            cluster_indices_copy = *cluster_indices;
+            ready = false;
         }
-        // Assign the copied point cloud to the cloud_of_clusters object
-        cloud_of_clusters = output_stream_copy;
 
         pcl::PointCloud<pcl::PointXYZ>::Ptr best_cluster(new pcl::PointCloud<pcl::PointXYZ>);
         float best_distance = std::numeric_limits<float>::max();
         int best_index = -1;
 
-        for (auto & [header, indices] : cluster_indices_copy) {
+        for (const auto& [header, indices] : *cluster_indices) {
             pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cluster(new pcl::PointCloud<pcl::PointXYZ>);
             for (const auto& idx : indices) {
-                cloud_cluster->push_back(cloud_of_clusters[idx]);
+                cloud_cluster->push_back(output_stream_cloud->points[idx]);
             }
 
-            // Estimate VFH signature
             pcl::PointCloud<pcl::VFHSignature308> signature;
             estimate_VFH(cloud_cluster, signature);
 
-            // Search for the best match in the training models
             vfh_model query_model;
             query_model.second.assign(signature.points[0].histogram, signature.points[0].histogram + 308);
             nearestKSearch(index, query_model, k, k_indices, k_distances);
@@ -95,24 +81,22 @@ int main(int argc, char** argv) {
         }
 
         if (best_index != -1) {
-            // Visualize the chosen model beside the best match model
-            std::vector<std::string> files_to_show;
-            files_to_show.push_back(output_directory + "/best_cluster.pcd");
-            pcl::io::savePCDFileASCII(files_to_show.back(), *best_cluster);
+            Eigen::Matrix4f new_pose = estimatePose(output_stream_cloud, best_cluster);
+            pose_manager.updatePose(new_pose);
+            Eigen::Matrix4f stored_pose = pose_manager.getPose();
+            std::cout << "Updated Pose:\n" << stored_pose << std::endl;
 
-            std::string best_model_path = models[best_index].first;
-            files_to_show.push_back(best_model_path);
-
-            showPointClouds(files_to_show);
-        }
-
-        std::cout << "Press any key to capture another point cloud, or Q to quit" << std::endl;
-        char key;
-        std::cin >> key;
-        if (key == 'Q' || key == 'q') {
-            break;
+            rs2::frameset frames = pipeline.wait_for_frames();
+            rs2::frame color_frame = frames.get_color_frame();
+            cv::Mat frame(cv::Size(640, 480), CV_8UC3, const_cast<void*>(color_frame.get_data()), cv::Mat::AUTO_STEP);
+            displayCoordinateSystem(stored_pose, frame, intrinsics);
+            cv::imshow("Coordinate System", frame);
+            if (cv::waitKey(1) >= 0) {
+                pipeline.stop();
+                break;
+            }
         }
     }
-
+    processing_thread.join();
     return 0;
 }

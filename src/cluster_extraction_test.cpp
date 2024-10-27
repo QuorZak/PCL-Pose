@@ -3,6 +3,8 @@
 int main() {
   const std::string test_name = "test";
   const std::string output_folder = "../lab_data/test/";
+  // Define the angle (in degrees) that the object is facing
+  float object_facing_angle = 45.0f; // Change this each capture
 
   // Initialise the Realsense pipeline
   rs2::pipeline pipe;
@@ -60,6 +62,14 @@ int main() {
     cloud_cluster->width = cloud_cluster->size();
     cloud_cluster->height = 1;
     cloud_cluster->is_dense = true;
+
+    // Set the front direction of the point cloud
+    Eigen::Matrix4f initial_pose = Eigen::Matrix4f::Identity();
+    Eigen::Vector3f forward_direction(0.0f, 0.0f, 1.0f);
+    Eigen::Matrix4f new_pose = setFrontDirection(initial_pose, forward_direction, object_facing_angle);
+
+    // Transform the point cloud using the new pose
+    transformPointCloud(*cloud_cluster, *cloud_cluster, new_pose);
 
     std::cout << "PointCloud representing the Cluster: " << cloud_cluster->size() << " data points." << std::endl;
     std::stringstream ss;
