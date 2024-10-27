@@ -10,6 +10,9 @@ int main() {
   config.enable_stream(RS2_STREAM_DEPTH, cam_res_width, cam_res_height, RS2_FORMAT_Z16, cam_fps); // Use global parameters
   pipe.start(config);
 
+  // Initialise the filters which will be applied to the depth frame
+  initialise_filters();
+
   // Camera warmup - dropping several first frames to let auto-exposure stabilize
   for (int i = 0; i < 100; i++) {
     // Wait for all configured streams to produce a frame
@@ -31,7 +34,7 @@ int main() {
   // Call the extracted function
   pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered(new pcl::PointCloud<pcl::PointXYZ>);
   std::vector<pcl::PointIndices> cluster_indices;
-  filterAndSegmentPointCloud(cloud, cloud_filtered, cluster_indices);
+  filterAndSegmentPointCloud(cloud, cloud_filtered, cluster_indices, true);
 
   // Clear out all the files in the output folder from the previous run
   const std::string clear_command = "rm -f " + output_folder + test_name + "_*.pcd";

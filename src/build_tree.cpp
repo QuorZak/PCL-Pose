@@ -10,47 +10,6 @@ typedef std::pair<std::string, std::vector<float> > vfh_model;
   * \param path the input file name
   * \param vfh the resultant VFH model
   */
-bool
-loadHist (const pcl_fs::path &path, vfh_model &vfh)
-{
-  int vfh_idx;
-  // Load the file as a PCD
-  try
-  {
-    pcl::PCLPointCloud2 cloud;
-    int version;
-    Eigen::Vector4f origin;
-    Eigen::Quaternionf orientation;
-    pcl::PCDReader r;
-    int type; unsigned int idx;
-    r.readHeader (path.string (), cloud, origin, orientation, version, type, idx);
-
-    vfh_idx = pcl::getFieldIndex (cloud, "vfh");
-    if (vfh_idx == -1)
-      return (false);
-    if ((int)cloud.width * cloud.height != 1)
-      return (false);
-  }
-  catch (const pcl::InvalidConversionException&)
-  {
-    return (false);
-  }
-
-  // Treat the VFH signature as a single Point Cloud
-  pcl::PointCloud <pcl::VFHSignature308> point;
-  pcl::io::loadPCDFile (path.string (), point);
-  vfh.second.resize (308);
-
-  std::vector <pcl::PCLPointField> fields;
-  pcl::getFieldIndex<pcl::VFHSignature308> ("vfh", fields);
-
-  for (std::size_t i = 0; i < fields[vfh_idx].count; ++i)
-  {
-    vfh.second[i] = point[0].histogram[i];
-  }
-  vfh.first = path.string ();
-  return (true);
-}
 
 /** \brief Load a set of VFH features that will act as the model (training data)
   * \param argc the number of arguments (pass from main ())
@@ -76,7 +35,7 @@ void loadFeatureModels (const pcl_fs::path &base_dir, const std::string &extensi
     if (pcl_fs::is_regular_file (it->status ()) && it->path ().extension ().string () == extension)
     {
       vfh_model m;
-      if (loadHist (base_dir / it->path ().filename (), m))
+      if (load_vfh_histogram (boost::filesystem::path(base_dir / it->path().filename()), m))
         models.push_back (m);
     }
   }

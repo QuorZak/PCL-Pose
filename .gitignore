@@ -16,7 +16,8 @@ ehthumbs.db
 Icon?
 Thumbs.db
 
-# .idea
+# Ignore everything to do with .idea
+.idea/*
 /.idea/
 
 # PCL Demo
@@ -24,7 +25,4 @@ Thumbs.db
 
 # Lab data - For now it changes too often
 /lab_data/
-/output/
-/mustard_small/
-/pose_estimation_cluster/capture.pcd
-/pose_estimation_cluster/capture_vfh.pcd
+/pose_estimation_cluster/

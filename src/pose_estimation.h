@@ -44,14 +44,17 @@ inline extern const int cam_res_height = 480; // Standard 480
 inline extern const int cam_fps = 15;
 
 // Parameters for cloud filtering
-inline extern const float leaf_size = 0.006f; // 0.01f default
-inline extern const float cluster_tolerance = 0.02f; // 0.02 default
+inline extern const float leaf_size = 0.01f; // 0.01f default
+inline extern const float cluster_tolerance = 0.01f; // 0.02 default
 inline extern const int min_cluster_size = 200; // 100 default
-inline extern const int max_cluster_size = 1000; // 25000 default
+inline extern const int max_cluster_size = 10000; // 25000 default
 inline extern const float segment_distance_threshold = 0.02f; // 0.02 default
+inline extern const float segment_probability = 0.99f; // try 0.99 ? Increase the probability to get a good sample
+inline extern const float segment_radius_min = 0.01f; // try 0.01 ? Set radius limits to avoid collinear points
+inline extern const float segment_radius_max = 0.1f; // try 0.1 ?
 
 // Directory for reference models
-inline extern std::string model_directory = "../lab_data/";
+inline extern std::string model_directory = "../lab_data/"; // "../lab_data/";
 
 // Post-processing filters for the depth frame
 // Threshold filter, Temporal filter, Hole filling filter
@@ -151,14 +154,15 @@ inline pcl::PointCloud<pcl::PointXYZ>::Ptr depthFrameToPointCloud(const rs2::dep
 // This is the Cluster Extraction code that is common to both the test and the main code
 // It extracts clusters from the point cloud
 inline void filterAndSegmentPointCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud,
-  pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud_filtered, std::vector<pcl::PointIndices>& cluster_indices) {
+  pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud_filtered, std::vector<pcl::PointIndices>& cluster_indices,
+  const bool debugging = false) {
 
   // Create the filtering object: down-sample the dataset using a leaf size of 1cm
   pcl::VoxelGrid<pcl::PointXYZ> vg;
   vg.setInputCloud(cloud);
   vg.setLeafSize(leaf_size, leaf_size, leaf_size);
   vg.filter(*cloud_filtered);
-  std::cout << "PointCloud after filtering has: " << cloud_filtered->size() << " data points." << std::endl;
+  // std::cout << "PointCloud after filtering has: " << cloud_filtered->size() << " data points." << std::endl;
 
   // Create the segmentation object for the planar model and set all the parameters
   pcl::SACSegmentation<pcl::PointXYZ> seg;
@@ -171,12 +175,16 @@ inline void filterAndSegmentPointCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr
   seg.setMaxIterations(100); // 100 default
   seg.setDistanceThreshold(segment_distance_threshold); // 0.02 default
 
+  // Additional parameters to improve sample quality
+  seg.setProbability(segment_probability);
+  seg.setRadiusLimits(segment_radius_min, segment_radius_max);
+
   int filter_count = 0;
   int nr_points = static_cast<int>(cloud_filtered->size());
 
   // Create the filtering object
   pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_f(new pcl::PointCloud<pcl::PointXYZ>);
-  while (cloud_filtered->size () > 0.3 * nr_points) {
+  while (cloud_filtered->size () > 0.4 * nr_points) {
   // while (filter_count < 1) {
     // Segment the largest planar component from the remaining cloud
     seg.setInputCloud(cloud_filtered);
@@ -194,7 +202,9 @@ inline void filterAndSegmentPointCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr
 
     // Get the points associated with the planar surface
     extract.filter(*cloud_plane);
-    std::cout << "PointCloud representing the planar component: " << cloud_plane->size() << " data points." << std::endl;
+    if (debugging) {
+      std::cout << "PointCloud representing the planar component: " << cloud_plane->size() << " data points." << std::endl;
+    }
 
     // Remove the planar inliers, extract the rest
     extract.setNegative(true);
@@ -218,7 +228,7 @@ inline void filterAndSegmentPointCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr
 }
 
 inline void stream_point_cloud_show_depth_map(rs2::pipeline pipe, pcl::PointCloud<pcl::PointXYZ>::Ptr &output_stream_cloud,
-  std::mutex &mtx, std::condition_variable &cv, bool &ready) {
+  std::shared_ptr<std::vector<pcl::PointIndices>> &output_cluster_indices, std::mutex &mtx, std::condition_variable &cv, bool &ready) {
 
   // Add a stream with its parameters
   rs2::config config;
@@ -228,7 +238,7 @@ inline void stream_point_cloud_show_depth_map(rs2::pipeline pipe, pcl::PointClou
   rs2::pipeline_profile profile = pipe.start(config);
 
   // Set up the variables necessary for the filterAndSegmentPointCloud function
-  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered(new pcl::PointCloud<pcl::PointXYZ>);
+  pcl::PointCloud<pcl::PointXYZ>::Ptr filtered_cloud_clusters(new pcl::PointCloud<pcl::PointXYZ>);
   std::vector<pcl::PointIndices> cluster_indices;
 
   // Initialise the filters which will be applied to the depth frame
@@ -253,22 +263,19 @@ inline void stream_point_cloud_show_depth_map(rs2::pipeline pipe, pcl::PointClou
     // This will be the shared resource between the threads
     auto cloud = depthFrameToPointCloud(depth, true);
     // Process the point cloud to get the object cluster
-    filterAndSegmentPointCloud(cloud, cloud_filtered, cluster_indices);
+    filterAndSegmentPointCloud(cloud, filtered_cloud_clusters, cluster_indices);
 
     // Extract the object cluster from the point cloud
     if (cluster_indices.empty()) {
       std::cout << "No clusters found." << std::endl;
       continue;
     }
-    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cluster(new pcl::PointCloud<pcl::PointXYZ>);
-    for (const auto& idx : cluster_indices[0].indices) {
-      cloud_cluster->push_back((*cloud_filtered)[idx]);
-    }
 
-    // Lock the mutex and update the shared output_depth_map
+    // Lock the mutex and update the shared output_stream_cloud and list of clusters
     {
       std::lock_guard<std::mutex> lock(mtx);
-      output_stream_cloud = cloud_cluster;
+      output_stream_cloud = filtered_cloud_clusters;
+      *output_cluster_indices = cluster_indices;
       ready = true;
     }
     cv.notify_one();
@@ -361,7 +368,7 @@ inline bool checkVFH(const boost::filesystem::path &path)
 // This function loads VFH signature histogram into a vfh model
 // Input: File path to histogram
 // Output: A boolean that returns true if the histogram is loaded successfully and a vfh_model data that holds the histogram information
-inline bool loadHist (const boost::filesystem::path &path, vfh_model &vfh)
+inline bool load_vfh_histogram (const boost::filesystem::path &path, vfh_model &vfh)
 {
   int vfh_idx;
   // Read file header to check if the file contains VFH signature
@@ -408,10 +415,10 @@ inline bool loadHist (const boost::filesystem::path &path, vfh_model &vfh)
 
 // This gets PCD file names from a directory and passes them to histogram loader one by one
 // then pushes the results into a vfh_model vector to keep them in a data storage
-// Input: Training data set file path
+// Input: Model data set file path
 // Output: A vfh_model vector that contains all VFH signature information
-inline void loadData(const boost::filesystem::path &base_dir, std::vector<vfh_model> &models) {
-  if (!boost::filesystem::exists(base_dir) || !boost::filesystem::is_directory(base_dir)) {
+inline void load_vfh_model_data(const boost::filesystem::path &base_dir, std::vector<vfh_model> &models) {
+  if (!exists(base_dir) || !is_directory(base_dir)) {
     return;
   }
 
@@ -422,19 +429,24 @@ inline void loadData(const boost::filesystem::path &base_dir, std::vector<vfh_mo
     boost::filesystem::path current_dir = directories.top();
     directories.pop();
 
+    int vfh_count = 0;
+
     for (boost::filesystem::directory_iterator i(current_dir); i != boost::filesystem::directory_iterator(); ++i) {
       if (boost::filesystem::is_directory(i->status())) {
         directories.push(i->path());
-        std::stringstream ss;
-        ss << i->path();
-        pcl::console::print_highlight("Loading %s (%lu models loaded so far).\n", ss.str().c_str(), (unsigned long)models.size());
       } else if (boost::filesystem::is_regular_file(i->status()) && boost::filesystem::extension(i->path()) == ".pcd") {
         vfh_model m;
-        if (loadHist(i->path().string(), m)) {
+        if (load_vfh_histogram(i->path().string(), m)) {
           models.push_back(m);
-          std::cout << m.first << std::endl;
+          vfh_count++;
         }
       }
+    }
+
+    if (vfh_count > 0) {
+      std::stringstream ss;
+      ss << "Loaded " << vfh_count << " models from \"" << current_dir.string() << "\"";
+      pcl::console::print_highlight("%s\n", ss.str().c_str());
     }
   }
 }
@@ -452,7 +464,7 @@ inline void replace_last(std::string& str, const std::string& from, const std::s
 // If the distance is smaller than a given threshold then the distances are shown in green, else they are shown in red
 // Inputs: Main function arguments, candidate count (k), threshold value, vfh_model vector that contains VFH signatures 
 // from the data set, indices of candidates and distances of candidates
-inline void visualize(int argc, char** argv, int k, double thresh, std::vector<vfh_model> models, flann::Matrix<int> k_indices, flann::Matrix<float> k_distances)
+inline void visualise(int argc, char** argv, int k, double thresh, std::vector<vfh_model> models, flann::Matrix<int> k_indices, flann::Matrix<float> k_distances)
 {
   // Load the results
   pcl::visualization::PCLVisualizer p (argc, argv, "VFH Cluster Classifier");
@@ -564,17 +576,19 @@ inline void showPointClouds(const std::vector<std::string>& created_files) {
   viewer->setBackgroundColor(0, 0, 0);
 
   for (const auto& file : created_files) {
-    if (file.substr(file.find_last_of(".") + 1) != "pcd" || file.find("_vfh.pcd") != std::string::npos) {
-      continue; // Skip non-pcd files and _vfh.pcd files
+    std::string pcd_file = file;
+    if (file.substr(file.find_last_of(".") + 1) == "pcd" && file.find("_vfh.pcd") != std::string::npos) {
+      // If the file is a VFH file, then we need to load the original file
+      pcd_file = file.substr(0, file.find("_vfh.pcd")) + ".pcd";
     }
-    std::cout << "Loading .pcd file for visualisation: " << file << std::endl;
+    std::cout << "Loading .pcd file for visualisation: " << pcd_file << std::endl;
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
-    if (pcl::io::loadPCDFile(file, *cloud) == -1) {
-      PCL_ERROR("Couldn't read file %s \n", file.c_str());
+    if (pcl::io::loadPCDFile(pcd_file, *cloud) == -1) {
+      PCL_ERROR("Couldn't read file %s \n", pcd_file.c_str());
       continue;
     }
-    viewer->addPointCloud<pcl::PointXYZ>(cloud, file);
-    viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 5, file); // Increase point size
+    viewer->addPointCloud<pcl::PointXYZ>(cloud, pcd_file);
+    viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 5, pcd_file); // Increase point size
   }
 
   while (!viewer->wasStopped()) {

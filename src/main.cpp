@@ -26,7 +26,12 @@ int main(int argc, char** argv) {
     rs2::pipeline pipe;
     pcl::PointCloud<pcl::PointXYZ>::Ptr output_stream_cloud(new pcl::PointCloud<pcl::PointXYZ>);
     pcl::PointCloud<pcl::PointXYZ> output_stream_copy;
-    pcl::PointCloud<pcl::PointXYZ>::Ptr pcl_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+    pcl::PointCloud<pcl::PointXYZ> cloud_of_clusters; // Changed to object
+    std::shared_ptr<std::vector<pcl::PointIndices>> cluster_indices(new std::vector<pcl::PointIndices>);
+    std::vector<pcl::PointIndices> cluster_indices_copy;
+
+    pcl::PointCloud<pcl::PointXYZ>::Ptr chosen_object_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+
     std::mutex mtx;
     std::condition_variable condition_var;
     bool ready = false;
@@ -34,51 +39,10 @@ int main(int argc, char** argv) {
     // Start the streamDepthMap function in a separate thread
     cout << "Starting the point cloud streaming thread." << endl;
     std::thread img_thread(stream_point_cloud_show_depth_map, std::ref(pipe), std::ref(output_stream_cloud),
-        std::ref(mtx), std::ref(condition_var), std::ref(ready));
+        std::ref(cluster_indices), std::ref(mtx), std::ref(condition_var), std::ref(ready));
 
-    // Wait for the first available output Realsense cloud
-    {
-        std::unique_lock<std::mutex> lock(mtx);
-        condition_var.wait(lock, [&ready] { return ready; });
-        // Once the lock is acquired, copy the output stream cloud to the pcl cloud
-        output_stream_copy = *output_stream_cloud;
-    }
-    // Create a usable pointer to the point cloud
-    *pcl_cloud = output_stream_copy;
-
-    // Ensure the point cloud dimensions are set correctly
-    pcl_cloud->width = static_cast<uint32_t>(pcl_cloud->points.size());
-    pcl_cloud->height = 1; // Since this is an unorganised point cloud
-    pcl_cloud->is_dense = false;
-
-    // Save the point cloud to a PCD file
-    if (pcl_cloud->points.empty()) {
-        std::cerr << "No points in the point cloud." << std::endl;
-        return -1;
-    }
-    std::string pcd_path = output_directory + "/capture.pcd";
-    pcl::io::savePCDFileASCII(pcd_path, *pcl_cloud);
-    std::cout << "Saved " << pcl_cloud->points.size() << " data points to " << pcd_path << std::endl;
-
-    // Now we're finished getting the point cloud, so we can move on to getting the VFH
-    std::cout << "Finished getting point cloud, now getting VFH." << std::endl;
-    vfh_model histogram;
-    std::string vfh_path = output_directory + "/capture_vfh.pcd";
-
-    // Estimate signature and save it in a file
-    pcl::PointCloud<pcl::VFHSignature308> signature;
-    estimate_VFH(pcl_cloud, signature);
-    pcl::io::savePCDFile(vfh_path, signature);
-    std::cout << "Saved VFH signature to " << vfh_path << std::endl;
-
-    // Load VFH signature of the query object
-    if (!loadHist(vfh_path, histogram)) {
-        pcl::console::print_error("Cannot load test file %s\n", vfh_path.c_str());
-        return -1;
-    }
-
-    // Load training data
-    loadData(model_directory, models);
+    // While camera is initialising, load vfh model data
+    load_vfh_model_data(model_directory, models);
 
     // Convert data into FLANN format
     flann::Matrix<float> data(new float[models.size() * models[0].second.size()],
@@ -92,20 +56,63 @@ int main(int argc, char** argv) {
     flann::Index<flann::ChiSquareDistance<float>> index(data, flann::LinearIndexParams());
     index.buildIndex();
 
-    // Search for query object in the K-d tree
-    nearestKSearch(index, histogram, k, k_indices, k_distances);
+    while (true) {
+        // Wait for the first available output Realsense cloud
+        {
+            std::unique_lock<std::mutex> lock(mtx);
+            condition_var.wait(lock, [&ready] { return ready; });
+            // Once the lock is acquired, copy the output stream cloud to the pcl cloud
+            output_stream_copy = *output_stream_cloud;
+            cluster_indices_copy = *cluster_indices;
+        }
+        // Assign the copied point cloud to the cloud_of_clusters object
+        cloud_of_clusters = output_stream_copy;
 
-    // Print closest candidates on the console
-    std::cout << "The closest " << k << " neighbors for " << input_name << " are: " << std::endl;
-    for (int i = 0; i < k; ++i)
-        pcl::console::print_info("    %d - %s (%d) with a distance of: %f\n",
-                                 i, models.at(k_indices[0][i]).first.c_str(), k_indices[0][i], k_distances[0][i]);
+        pcl::PointCloud<pcl::PointXYZ>::Ptr best_cluster(new pcl::PointCloud<pcl::PointXYZ>);
+        float best_distance = std::numeric_limits<float>::max();
+        int best_index = -1;
 
-    // Visualize the closest candidates on the screen
-    visualize(argc, argv, k, thresh, models, k_indices, k_distances);
+        for (auto & [header, indices] : cluster_indices_copy) {
+            pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cluster(new pcl::PointCloud<pcl::PointXYZ>);
+            for (const auto& idx : indices) {
+                cloud_cluster->push_back(cloud_of_clusters[idx]);
+            }
 
-    // Join the thread before exiting
-    img_thread.join();
+            // Estimate VFH signature
+            pcl::PointCloud<pcl::VFHSignature308> signature;
+            estimate_VFH(cloud_cluster, signature);
+
+            // Search for the best match in the training models
+            vfh_model query_model;
+            query_model.second.assign(signature.points[0].histogram, signature.points[0].histogram + 308);
+            nearestKSearch(index, query_model, k, k_indices, k_distances);
+
+            if (k_distances[0][0] < best_distance) {
+                best_distance = k_distances[0][0];
+                best_index = k_indices[0][0];
+                *best_cluster = *cloud_cluster;
+            }
+        }
+
+        if (best_index != -1) {
+            // Visualize the chosen model beside the best match model
+            std::vector<std::string> files_to_show;
+            files_to_show.push_back(output_directory + "/best_cluster.pcd");
+            pcl::io::savePCDFileASCII(files_to_show.back(), *best_cluster);
+
+            std::string best_model_path = models[best_index].first;
+            files_to_show.push_back(best_model_path);
+
+            showPointClouds(files_to_show);
+        }
+
+        std::cout << "Press any key to capture another point cloud, or Q to quit" << std::endl;
+        char key;
+        std::cin >> key;
+        if (key == 'Q' || key == 'q') {
+            break;
+        }
+    }
 
     return 0;
 }
