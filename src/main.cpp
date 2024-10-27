@@ -2,7 +2,7 @@
 
 int main(int argc, char** argv) {
     std::string input_name = "capture.pcd";
-    std::string output_directory = "../output";
+    std::string output_directory = "../pose_estimation_cluster";
     int k = 6;
     auto thresh = DBL_MAX;
 
@@ -32,7 +32,7 @@ int main(int argc, char** argv) {
     bool ready = false;
 
     // Start the streamDepthMap function in a separate thread
-    cout << "Starting the streamDepthMap function in a separate thread." << endl;
+    cout << "Starting the point cloud streaming thread." << endl;
     std::thread img_thread(stream_point_cloud_show_depth_map, std::ref(pipe), std::ref(output_stream_cloud),
         std::ref(mtx), std::ref(condition_var), std::ref(ready));
 

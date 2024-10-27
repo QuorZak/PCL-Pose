@@ -39,12 +39,30 @@ inline extern const float depth_filter_max_distance = 1.0f;
 
 // Global camera config params
 // 848x480 resolution, 15 frames per second is optimal for Realsense D455
-inline extern const int cam_res_width = 848;
-inline extern const int cam_res_height = 480;
+inline extern const int cam_res_width = 848; // Standard 640
+inline extern const int cam_res_height = 480; // Standard 480
 inline extern const int cam_fps = 15;
+
+// Parameters for cloud filtering
+inline extern const float leaf_size = 0.006f; // 0.01f default
+inline extern const float cluster_tolerance = 0.02f; // 0.02 default
+inline extern const int min_cluster_size = 200; // 100 default
+inline extern const int max_cluster_size = 1000; // 25000 default
+inline extern const float segment_distance_threshold = 0.02f; // 0.02 default
 
 // Directory for reference models
 inline extern std::string model_directory = "../lab_data/";
+
+// Post-processing filters for the depth frame
+// Threshold filter, Temporal filter, Hole filling filter
+inline extern rs2::threshold_filter threshold_filter = rs2::threshold_filter();
+inline extern rs2::temporal_filter temporal_filter = rs2::temporal_filter();
+inline extern rs2::hole_filling_filter hole_filling_filter = rs2::hole_filling_filter();
+// Values for the filters
+inline extern float depth_filter_smooth_alpha = 0.25f; // Smoothing factor 0.25
+inline extern float depth_filter_smooth_delta = 60; // Delta value 60
+inline extern float depth_filter_temporal_holes_fill = 6.0f; // Persistency index 7 (2nd highest) [0-8]
+inline extern float depth_filter_holes_fill = 2.0f;// 2 = fill from the farthest pixel
 
 // This function takes the width and height of a depth image and returns the x and y start and stop points for cropping
 // The start and stop points are the absolute vales of the start position and stop position of the crop
@@ -62,25 +80,30 @@ inline std::tuple<int, int, int, int> get_crop_points(const int width, const int
   return std::make_tuple(x_start, x_stop, y_start, y_stop);
 }
 
-// Apply global threshold filter to the depth frame
-inline rs2::depth_frame apply_threshold_filter(rs2::depth_frame depth) {
-  const rs2::threshold_filter threshold_filter;
+// Initialise the filters for the depth frame
+inline void initialise_filters() {
   threshold_filter.set_option(RS2_OPTION_MIN_DISTANCE, depth_filter_min_distance);
   threshold_filter.set_option(RS2_OPTION_MAX_DISTANCE, depth_filter_max_distance);
-  return threshold_filter.process(std::move(depth));
+
+  temporal_filter.set_option(RS2_OPTION_FILTER_SMOOTH_ALPHA, depth_filter_smooth_alpha);
+  temporal_filter.set_option(RS2_OPTION_FILTER_SMOOTH_DELTA, depth_filter_smooth_delta);
+  temporal_filter.set_option(RS2_OPTION_HOLES_FILL, depth_filter_temporal_holes_fill);
+
+  hole_filling_filter.set_option(RS2_OPTION_HOLES_FILL, depth_filter_holes_fill);
+}
+
+// Apply post-processing filters to the depth frame
+inline rs2::depth_frame apply_post_processing_filters(rs2::depth_frame depth) {
+  depth = threshold_filter.process(depth);
+  depth = temporal_filter.process(depth);
+  //depth = hole_filling_filter.process(depth);
+  return depth;
 }
 
 // Convert the depth frame to a PCL point cloud
 // Allows for optional cropping of the image if crop is set to true
 // The crop is centered around the center of the image
-inline pcl::PointCloud<pcl::PointXYZ>::Ptr depthFrameToPointCloud(rs2::depth_frame depth,
-  const bool filter = false, const bool crop = false) {
-
-  if (filter) {
-    // Filter the depth values of the depth frame
-    depth = apply_threshold_filter(depth);
-  }
-
+inline pcl::PointCloud<pcl::PointXYZ>::Ptr depthFrameToPointCloud(const rs2::depth_frame& depth, const bool crop = false) {
   // Convert the depth frame to a PCL point cloud
   pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
   const rs2::pointcloud rs_cloud;
@@ -125,6 +148,75 @@ inline pcl::PointCloud<pcl::PointXYZ>::Ptr depthFrameToPointCloud(rs2::depth_fra
   return cloud;
 }
 
+// This is the Cluster Extraction code that is common to both the test and the main code
+// It extracts clusters from the point cloud
+inline void filterAndSegmentPointCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud,
+  pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud_filtered, std::vector<pcl::PointIndices>& cluster_indices) {
+
+  // Create the filtering object: down-sample the dataset using a leaf size of 1cm
+  pcl::VoxelGrid<pcl::PointXYZ> vg;
+  vg.setInputCloud(cloud);
+  vg.setLeafSize(leaf_size, leaf_size, leaf_size);
+  vg.filter(*cloud_filtered);
+  std::cout << "PointCloud after filtering has: " << cloud_filtered->size() << " data points." << std::endl;
+
+  // Create the segmentation object for the planar model and set all the parameters
+  pcl::SACSegmentation<pcl::PointXYZ> seg;
+  pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
+  pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
+  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_plane(new pcl::PointCloud<pcl::PointXYZ>());
+  seg.setOptimizeCoefficients(true);
+  seg.setModelType(pcl::SACMODEL_PLANE);
+  seg.setMethodType(pcl::SAC_RANSAC);
+  seg.setMaxIterations(100); // 100 default
+  seg.setDistanceThreshold(segment_distance_threshold); // 0.02 default
+
+  int filter_count = 0;
+  int nr_points = static_cast<int>(cloud_filtered->size());
+
+  // Create the filtering object
+  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_f(new pcl::PointCloud<pcl::PointXYZ>);
+  while (cloud_filtered->size () > 0.3 * nr_points) {
+  // while (filter_count < 1) {
+    // Segment the largest planar component from the remaining cloud
+    seg.setInputCloud(cloud_filtered);
+    seg.segment(*inliers, *coefficients);
+    if (inliers->indices.empty()) {
+      std::cout << "Could not estimate a planar model for the given dataset." << std::endl;
+      return;
+    }
+
+    // Extract the planar inliers from the input cloud
+    pcl::ExtractIndices<pcl::PointXYZ> extract;
+    extract.setInputCloud(cloud_filtered);
+    extract.setIndices(inliers);
+    extract.setNegative(false);
+
+    // Get the points associated with the planar surface
+    extract.filter(*cloud_plane);
+    std::cout << "PointCloud representing the planar component: " << cloud_plane->size() << " data points." << std::endl;
+
+    // Remove the planar inliers, extract the rest
+    extract.setNegative(true);
+    extract.filter(*cloud_f);
+    *cloud_filtered = *cloud_f;
+
+    filter_count++;
+  }
+
+  // Creating the KdTree object for the search method of the extraction
+  pcl::search::KdTree<pcl::PointXYZ>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZ>);
+  tree->setInputCloud(cloud_filtered);
+
+  pcl::EuclideanClusterExtraction<pcl::PointXYZ> ec;
+  ec.setClusterTolerance(cluster_tolerance);
+  ec.setMinClusterSize(min_cluster_size);
+  ec.setMaxClusterSize(max_cluster_size);
+  ec.setSearchMethod(tree);
+  ec.setInputCloud(cloud_filtered);
+  ec.extract(cluster_indices);
+}
+
 inline void stream_point_cloud_show_depth_map(rs2::pipeline pipe, pcl::PointCloud<pcl::PointXYZ>::Ptr &output_stream_cloud,
   std::mutex &mtx, std::condition_variable &cv, bool &ready) {
 
@@ -133,7 +225,14 @@ inline void stream_point_cloud_show_depth_map(rs2::pipeline pipe, pcl::PointClou
   config.enable_stream(RS2_STREAM_DEPTH, cam_res_width, cam_res_height, RS2_FORMAT_Z16, cam_fps);
 
   // Instruct pipeline to start streaming with the requested configuration
-  pipe.start(config);
+  rs2::pipeline_profile profile = pipe.start(config);
+
+  // Set up the variables necessary for the filterAndSegmentPointCloud function
+  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered(new pcl::PointCloud<pcl::PointXYZ>);
+  std::vector<pcl::PointIndices> cluster_indices;
+
+  // Initialise the filters which will be applied to the depth frame
+  initialise_filters();
 
   // Camera warmup - dropping several first frames to let auto-exposure stabilize
   for (int i = 0; i < 100; i++) {
@@ -147,14 +246,34 @@ inline void stream_point_cloud_show_depth_map(rs2::pipeline pipe, pcl::PointClou
 
     // Get a frame from the depth stream
     auto depth = frames.get_depth_frame();
+    // Filter the depth values of the depth frame
+    rs2::depth_frame filtered_depth = apply_post_processing_filters(depth);
 
-    auto cloud = depthFrameToPointCloud(depth, true, true);
+    // Convert the depth frame to a point cloud and store it in the output_stream_cloud
+    // This will be the shared resource between the threads
+    auto cloud = depthFrameToPointCloud(depth, true);
+    // Process the point cloud to get the object cluster
+    filterAndSegmentPointCloud(cloud, cloud_filtered, cluster_indices);
 
-    // Everything past here is for visualisation only
-    // Same threshold filter as the one that was applied for the point cloud
-    // Same cropping as the one that was applied for the point cloud
-    auto filtered_depth = apply_threshold_filter(depth);
+    // Extract the object cluster from the point cloud
+    if (cluster_indices.empty()) {
+      std::cout << "No clusters found." << std::endl;
+      continue;
+    }
+    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cluster(new pcl::PointCloud<pcl::PointXYZ>);
+    for (const auto& idx : cluster_indices[0].indices) {
+      cloud_cluster->push_back((*cloud_filtered)[idx]);
+    }
 
+    // Lock the mutex and update the shared output_depth_map
+    {
+      std::lock_guard<std::mutex> lock(mtx);
+      output_stream_cloud = cloud_cluster;
+      ready = true;
+    }
+    cv.notify_one();
+
+    //////////////// Everything past here is for visualisation only ////////////////
     // Get width and height of the depth frame
     const auto width = filtered_depth.get_width();
     const auto height = filtered_depth.get_height();
@@ -174,14 +293,6 @@ inline void stream_point_cloud_show_depth_map(rs2::pipeline pipe, pcl::PointClou
     // Apply colormap on depth image
     cv::Mat depth_colormap;
     cv::applyColorMap(depth_image_8u, depth_colormap, cv::COLORMAP_JET);
-
-    // Lock the mutex and update the shared output_depth_map
-    {
-        std::lock_guard<std::mutex> lock(mtx);
-        output_stream_cloud = cloud;
-        ready = true;
-    }
-    cv.notify_one();
 
     // Display the depth map
     cv::imshow("Depth Map Stream", depth_colormap);
@@ -248,7 +359,7 @@ inline bool checkVFH(const boost::filesystem::path &path)
 }
 
 // This function loads VFH signature histogram into a vfh model
-// Input: File path
+// Input: File path to histogram
 // Output: A boolean that returns true if the histogram is loaded successfully and a vfh_model data that holds the histogram information
 inline bool loadHist (const boost::filesystem::path &path, vfh_model &vfh)
 {
@@ -482,72 +593,4 @@ inline std::vector<std::string> globFiles(const std::string& pattern) {
   }
   globfree(&glob_result);
   return files;
-}
-
-// This is the Cluster Extraction code that is common to both the test and the main code
-// It extracts clusters from the point cloud
-inline void filterAndSegmentPointCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud, pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud_filtered,
-  pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud_f, std::vector<pcl::PointIndices>& cluster_indices) {
-
-  // Create the filtering object: down-sample the dataset using a leaf size of 1cm
-  pcl::VoxelGrid<pcl::PointXYZ> vg;
-  vg.setInputCloud(cloud);
-  vg.setLeafSize(0.006f, 0.006f, 0.006f); // 0.01f default
-  vg.filter(*cloud_filtered);
-  std::cout << "PointCloud after filtering has: " << cloud_filtered->size() << " data points." << std::endl;
-
-  // Create the segmentation object for the planar model and set all the parameters
-  pcl::SACSegmentation<pcl::PointXYZ> seg;
-  pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
-  pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
-  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_plane(new pcl::PointCloud<pcl::PointXYZ>());
-  seg.setOptimizeCoefficients(true);
-  seg.setModelType(pcl::SACMODEL_PLANE);
-  seg.setMethodType(pcl::SAC_RANSAC);
-  seg.setMaxIterations(100); // 100 default
-  seg.setDistanceThreshold(0.02); // 0.02 default
-
-  int filter_count = 0;
-  int nr_points = static_cast<int>(cloud_filtered->size());
-
-
-  while (cloud_filtered->size () > 0.3 * nr_points) {
-  // while (filter_count < 1) {
-    // Segment the largest planar component from the remaining cloud
-    seg.setInputCloud(cloud_filtered);
-    seg.segment(*inliers, *coefficients);
-    if (inliers->indices.empty()) {
-      std::cout << "Could not estimate a planar model for the given dataset." << std::endl;
-      return;
-    }
-
-    // Extract the planar inliers from the input cloud
-    pcl::ExtractIndices<pcl::PointXYZ> extract;
-    extract.setInputCloud(cloud_filtered);
-    extract.setIndices(inliers);
-    extract.setNegative(false);
-
-    // Get the points associated with the planar surface
-    extract.filter(*cloud_plane);
-    std::cout << "PointCloud representing the planar component: " << cloud_plane->size() << " data points." << std::endl;
-
-    // Remove the planar inliers, extract the rest
-    extract.setNegative(true);
-    extract.filter(*cloud_f);
-    *cloud_filtered = *cloud_f;
-
-    filter_count++;
-  }
-
-  // Creating the KdTree object for the search method of the extraction
-  pcl::search::KdTree<pcl::PointXYZ>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZ>);
-  tree->setInputCloud(cloud_filtered);
-
-  pcl::EuclideanClusterExtraction<pcl::PointXYZ> ec;
-  ec.setClusterTolerance(0.01); // 2cm == 0.02 default
-  ec.setMinClusterSize(300); // 100 default
-  ec.setMaxClusterSize(1000); // 25000 default
-  ec.setSearchMethod(tree);
-  ec.setInputCloud(cloud_filtered);
-  ec.extract(cluster_indices);
 }

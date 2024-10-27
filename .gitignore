@@ -26,3 +26,5 @@ Thumbs.db
 /lab_data/
 /output/
 /mustard_small/
+/pose_estimation_cluster/capture.pcd
+/pose_estimation_cluster/capture_vfh.pcd

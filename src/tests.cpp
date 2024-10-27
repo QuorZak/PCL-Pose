@@ -63,7 +63,7 @@ void streamDepthMap() {
     auto depth = frames.get_depth_frame();
 
     // Apply a depth threshold filter
-    depth = apply_threshold_filter(depth);
+    depth = apply_post_processing_filters(depth);
 
     // Get size of the depth frame
     auto width = depth.get_width();

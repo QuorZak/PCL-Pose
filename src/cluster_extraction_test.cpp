@@ -19,10 +19,11 @@ int main() {
   // Capture a frame
   rs2::frameset frames = pipe.wait_for_frames();
   rs2::frame depth = frames.get_depth_frame();
+  depth = apply_post_processing_filters(depth);
 
   // Convert the depth frame to a PCL point cloud
-  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>), cloud_f(new pcl::PointCloud<pcl::PointXYZ>);
-  cloud = depthFrameToPointCloud(depth, true, true);
+  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
+  cloud = depthFrameToPointCloud(depth, true);
 
   pipe.stop();
   std::cout << "PointCloud captured from Realsense camera has: " << cloud->size() << " data points." << std::endl;
@@ -30,7 +31,7 @@ int main() {
   // Call the extracted function
   pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered(new pcl::PointCloud<pcl::PointXYZ>);
   std::vector<pcl::PointIndices> cluster_indices;
-  filterAndSegmentPointCloud(cloud, cloud_filtered, cloud_f, cluster_indices);
+  filterAndSegmentPointCloud(cloud, cloud_filtered, cluster_indices);
 
   // Clear out all the files in the output folder from the previous run
   const std::string clear_command = "rm -f " + output_folder + test_name + "_*.pcd";
