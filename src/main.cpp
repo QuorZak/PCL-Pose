@@ -39,7 +39,8 @@ int main(int argc, char** argv) {
 
     load_vfh_model_data(model_directory, models);
 
-    flann::Matrix<float> data(new float[models.size() * models[0].second.size()], models.size(), models[0].second.size());
+    std::unique_ptr<float[]> data_ptr(new float[models.size() * models[0].second.size()]);
+    Matrix data(data_ptr.get(), models.size(), models[0].second.size());
     for (size_t i = 0; i < data.rows; ++i)
         for (size_t j = 0; j < data.cols; ++j)
             data[i][j] = models[i].second[j];

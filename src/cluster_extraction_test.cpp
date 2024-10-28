@@ -1,12 +1,18 @@
 #include "pose_estimation.h"
 #include <pcl/common/transforms.h>
 #include <librealsense2/rs.hpp> // Include RealSense Cross Platform API
-#include <pcl/common/centroid.h>
 
 int main() {
   const std::string test_name = "test";
   const std::string output_folder = "../lab_data/test/";
   const float object_facing_angle = 0.0f; // Change this each capture
+  const float calibration_angle_offset = -40.0f; // Set this if your camera is not quite aligned
+
+  // Declare any variables - put here just to align more with the cluster_extraction.cpp
+  std::unique_ptr<Eigen::Matrix4f> object_pose(new Eigen::Matrix4f());
+  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
+  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered(new pcl::PointCloud<pcl::PointXYZ>);
+  std::vector<pcl::PointIndices> cluster_indices;
 
   rs2::pipeline pipe;
   rs2::config config;
@@ -27,14 +33,11 @@ int main() {
   rs2::motion_frame accel_frame = frames.first_or_default(RS2_STREAM_ACCEL);
   rs2_vector accel_data = accel_frame.get_motion_data();
 
-  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
   cloud = depthFrameToPointCloud(depth, true);
 
   pipe.stop();
   std::cout << "PointCloud captured from Realsense camera has: " << cloud->size() << " data points." << std::endl;
 
-  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered(new pcl::PointCloud<pcl::PointXYZ>);
-  std::vector<pcl::PointIndices> cluster_indices;
   filterAndSegmentPointCloud(cloud, cloud_filtered, cluster_indices, true);
 
   const std::string clear_command = "rm -f " + output_folder + test_name + "_*.pcd";
@@ -60,39 +63,11 @@ int main() {
     cloud_cluster->height = 1;
     cloud_cluster->is_dense = true;
 
-    Eigen::Vector4f centroid;
-    pcl::compute3DCentroid(*cloud_cluster, centroid);
+    // Get the pose of the object
+    getPointCloudOriginAndAxes(cloud_cluster, *object_pose, object_facing_angle, calibration_angle_offset, accel_data);
 
-    Eigen::Affine3f transform = Eigen::Affine3f::Identity();
-    transform.translation() << -centroid[0], -centroid[1], -centroid[2];
-    pcl::transformPointCloud(*cloud_cluster, *cloud_cluster, transform);
-
-    // TODO: Figure out this object rotation a bit better
-    Eigen::Matrix3f object_rotation; // Some - and + values to get 0 to be approximately directly away from the camera
-    object_rotation = Eigen::AngleAxisf(M_PI * (object_facing_angle+90) / -180.0f, Eigen::Vector3f::UnitY());
-
-    Eigen::Vector3f gravity_direction(accel_data.x, accel_data.y, accel_data.z);
-    gravity_direction.normalize();
-
-    // Calculate the angle between the y-axis and the gravity direction
-    Eigen::Vector3f y_axis = Eigen::Vector3f::UnitY();
-    float angle = acos(y_axis.dot(gravity_direction));
-
-    // Subtract the angle from the gravity direction
-    Eigen::Quaternionf rotation_quat = Eigen::Quaternionf(Eigen::AngleAxisf(-angle, y_axis.cross(gravity_direction).normalized()));
-    Eigen::Matrix3f align_rotation = rotation_quat.toRotationMatrix();
-
-    // Apply the inverse of the resulting transformation to the point cloud
-    Eigen::Matrix4f new_pose = Eigen::Matrix4f::Identity();
-    new_pose.block<3, 3>(0, 0) = -align_rotation;
-
-    // Now that the y direction is set, we can rotate the object to face the camera
-    new_pose.block<3, 3>(0, 0) = object_rotation * new_pose.block<3, 3>(0, 0);
-
-    // The x-axis can be set to the cross product of the y-axis and z-axis
-    new_pose.block<3, 1>(0, 0) = new_pose.block<3, 1>(0, 1).cross(new_pose.block<3, 1>(0, 2));
-
-    pcl::transformPointCloud(*cloud_cluster, *cloud_cluster, new_pose);
+    // Transform the point cloud using the new pose
+    transformPointCloud(*cloud_cluster, *cloud_cluster, *object_pose);
 
     std::cout << "PointCloud representing the Cluster: " << cloud_cluster->size() << " data points." << std::endl;
     std::stringstream ss;

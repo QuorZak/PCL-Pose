@@ -49,10 +49,10 @@ inline extern const int cam_res_height = 480; // Standard 480
 inline extern const int cam_fps = 15;
 
 // Parameters for cloud filtering
-inline extern const float leaf_size = 0.01f; // 0.01f default
+inline extern const float leaf_size = 0.008f; // 0.01f default
 inline extern const float cluster_tolerance = 0.01f; // 0.02 default
 inline extern const int min_cluster_size = 200; // 100 default
-inline extern const int max_cluster_size = 1000; // 25000 default
+inline extern const int max_cluster_size = 800; // 25000 default
 inline extern const float segment_distance_threshold = 0.02f; // 0.02 default
 inline extern const float segment_probability = 0.99f; // try 0.99 ? Increase the probability to get a good sample
 inline extern const float segment_radius_min = 0.01f; // try 0.01 ? Set radius limits to avoid collinear points
@@ -566,26 +566,6 @@ inline void showPointClouds(const std::vector<std::string>& created_files) {
   }
 }
 
-// Function to set the front direction of the point cloud
-inline Eigen::Matrix4f setFrontDirection(const Eigen::Matrix4f& pose, const Eigen::Vector3f& forward_direction, float angle_degrees) {
-  Eigen::Matrix4f new_pose = pose;
-
-  // Convert the angle from degrees to radians
-  const float angle_radians = M_PI * angle_degrees / 180.0f;
-
-  // Create a rotation matrix around the Y-axis (assuming Y is up)
-  Eigen::Matrix3f rotation;
-  rotation = Eigen::AngleAxisf(angle_radians, Eigen::Vector3f::UnitY());
-
-  // Apply the rotation to the forward direction
-  Eigen::Vector3f rotated_forward_direction = rotation * forward_direction.normalized();
-
-  // Set the Z-axis to the rotated forward direction
-  new_pose.block<3, 1>(0, 2) = rotated_forward_direction;
-
-  return new_pose;
-}
-
 // Function to get all files matching a pattern
 inline std::vector<std::string> globFiles(const std::string& pattern) {
   glob_t glob_result;
@@ -688,4 +668,43 @@ inline void displayCoordinateSystem(const Eigen::Matrix4f& pose, cv::Mat& frame,
   cv::line(frame, origin_2d, x_axis_2d, cv::Scalar(0, 0, 255), 3); // X-axis in red
   cv::line(frame, origin_2d, y_axis_2d, cv::Scalar(0, 255, 0), 3); // Y-axis in green
   cv::line(frame, origin_2d, z_axis_2d, cv::Scalar(255, 0, 0), 3); // Z-axis in blue
+}
+
+// This function takes a point cloud and sets the origin to the center of the point cloud
+// It also sets the axes to the principal axes of the point cloud, currently y = up, z = forward/front of the object
+// 0 degrees is defined as directly facing the camera
+inline void getPointCloudOriginAndAxes(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud_cluster, Eigen::Matrix4f& pose,
+  const float object_facing_angle, const float calibration_angle_offset, const rs2_vector& accel_data) {
+
+  // Compute the centroid of the point cloud
+  Eigen::Vector4f centroid;
+  compute3DCentroid(*cloud_cluster, centroid);
+
+  // Translate the point cloud to the origin (centroid)
+  Eigen::Affine3f transform = Eigen::Affine3f::Identity();
+  transform.translation() << -centroid[0], -centroid[1], -centroid[2];
+  transformPointCloud(*cloud_cluster, *cloud_cluster, transform);
+
+  Eigen::Vector3f gravity_direction(accel_data.x, accel_data.y, accel_data.z);
+  gravity_direction.normalize();
+
+  // Calculate the angle between the y-axis and the gravity direction
+  const Eigen::Vector3f y_axis = Eigen::Vector3f::UnitY();
+  const float angle = acos(y_axis.dot(gravity_direction));
+
+  // Subtract the angle from the gravity direction
+  const auto rotation_quart = Eigen::Quaternionf(Eigen::AngleAxisf(-angle, y_axis.cross(gravity_direction).normalized()));
+  const Eigen::Matrix3f y_align_rotation = rotation_quart.toRotationMatrix();
+
+  // Apply the opposite of the resulting transformation to the point cloud (to point away from gravity)
+  pose.block<3, 3>(0, 0) = -y_align_rotation;
+
+  // TODO: Figure out this object rotation a bit better and more efficiently
+  // Now that the y direction is set, we can rotate the object to align with zero degrees
+  Eigen::Matrix3f object_rotation; // Some - and + values to get 0 to be approximately directly away from the camera
+  object_rotation = Eigen::AngleAxisf(M_PI * (object_facing_angle+calibration_angle_offset) / 180.0f, Eigen::Vector3f::UnitY());
+  pose.block<3, 3>(0, 0) = object_rotation * pose.block<3, 3>(0, 0);
+
+  // The x-axis can be set to the cross product of the y-axis and z-axis
+  pose.block<3, 1>(0, 0) = pose.block<3, 1>(0, 1).cross(pose.block<3, 1>(0, 2));
 }

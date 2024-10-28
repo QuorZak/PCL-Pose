@@ -11,7 +11,14 @@ int main () {
   const std::string object_name = "spray_bottle_tall";
   const std::string output_folder = "../lab_data/" + object_name + "/";
   // Define the angle (in degrees) that the object is facing
-  float object_facing_angle = 0.0f; // Change this each capture
+  const float object_facing_angle = 90.0f; // Change this each capture
+  const float calibration_angle_offset = -40.0f; // Set this if your camera is not quite aligned
+
+  // Declare any variables so they don't have to be redefined each time
+  std::unique_ptr<Eigen::Matrix4f> object_pose(new Eigen::Matrix4f());
+  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
+  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered(new pcl::PointCloud<pcl::PointXYZ>);
+  std::vector<pcl::PointIndices> cluster_indices;
 
   // Get the highest file number
   int file_num = 0;
@@ -30,6 +37,7 @@ int main () {
   rs2::pipeline pipe;
   rs2::config config;
   config.enable_stream(RS2_STREAM_DEPTH, cam_res_width, cam_res_height, RS2_FORMAT_Z16, cam_fps); // Use global parameters
+  config.enable_stream(RS2_STREAM_ACCEL, RS2_FORMAT_MOTION_XYZ32F);
   pipe.start(config);
 
   // Initialise the filters which will be applied to the depth frame
@@ -40,6 +48,11 @@ int main () {
     // Wait for all configured streams to produce a frame
     auto frames = pipe.wait_for_frames(); // purposely does nothing with the frames
   }
+
+  // Get the camera orientation data
+  rs2::frameset frames = pipe.wait_for_frames();
+  rs2::motion_frame accel_frame = frames.first_or_default(RS2_STREAM_ACCEL);
+  rs2_vector accel_data = accel_frame.get_motion_data();
 
   while (true) {
     std::cout << "Ready to capture point cloud. " << std::endl;
@@ -52,19 +65,16 @@ int main () {
     }
 
     // Capture a frame
-    rs2::frameset frames = pipe.wait_for_frames();
+    frames = pipe.wait_for_frames();
     rs2::frame depth = frames.get_depth_frame();
     depth = apply_post_processing_filters(depth);
 
     // Convert the depth frame to a PCL point cloud
-    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
     cloud = depthFrameToPointCloud(depth, true);
 
     std::cout << "PointCloud captured from Realsense camera has: " << cloud->size() << " data points." << std::endl;
 
     // Call the extracted function
-    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered(new pcl::PointCloud<pcl::PointXYZ>);
-    std::vector<pcl::PointIndices> cluster_indices;
     filterAndSegmentPointCloud(cloud, cloud_filtered, cluster_indices, true);
 
     // If no clusters are found, output a message
@@ -82,12 +92,10 @@ int main () {
         cloud_cluster->is_dense = true;
 
         // Set the front direction of the point cloud
-        Eigen::Matrix4f initial_pose = Eigen::Matrix4f::Identity();
-        Eigen::Vector3f forward_direction(0.0f, 0.0f, 1.0f);
-        Eigen::Matrix4f new_pose = setFrontDirection(initial_pose, forward_direction, object_facing_angle);
+        getPointCloudOriginAndAxes(cloud_cluster,*object_pose, object_facing_angle, calibration_angle_offset, accel_data);
 
         // Transform the point cloud using the new pose
-        transformPointCloud(*cloud_cluster, *cloud_cluster, new_pose);
+        transformPointCloud(*cloud_cluster, *cloud_cluster, *object_pose);
 
         // Save the point cloud
         std::cout << "PointCloud representing the Cluster: " << cloud_cluster->size() << " data points." << std::endl;
