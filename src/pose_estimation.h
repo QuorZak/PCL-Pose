@@ -52,7 +52,7 @@ inline extern const int cam_fps = 15;
 inline extern const float leaf_size = 0.008f; // 0.01f default
 inline extern const float cluster_tolerance = 0.01f; // 0.02 default
 inline extern const int min_cluster_size = 200; // 100 default
-inline extern const int max_cluster_size = 800; // 25000 default
+inline extern const int max_cluster_size = 1000; // 25000 default
 inline extern const float segment_distance_threshold = 0.02f; // 0.02 default
 inline extern const float segment_probability = 0.99f; // try 0.99 ? Increase the probability to get a good sample
 inline extern const float segment_radius_min = 0.01f; // try 0.01 ? Set radius limits to avoid collinear points
@@ -86,7 +86,7 @@ inline extern rs2::hole_filling_filter hole_filling_filter = rs2::hole_filling_f
 // Values for the filters
 inline extern float depth_filter_smooth_alpha = 0.25f; // Smoothing factor 0.25
 inline extern float depth_filter_smooth_delta = 60; // Delta value 60
-inline extern float depth_filter_temporal_holes_fill = 6.0f; // Persistency index 7 (2nd highest) [0-8]
+inline extern float depth_filter_temporal_holes_fill = 6.0f; // Persistency index (highest = 8) [0-8]
 inline extern float depth_filter_holes_fill = 2.0f;// 2 = fill from the farthest pixel
 
 // This function takes the width and height of a depth image and returns the x and y start and stop points for cropping
@@ -128,7 +128,8 @@ inline rs2::depth_frame apply_post_processing_filters(rs2::depth_frame depth) {
 // Convert the depth frame to a PCL point cloud
 // Allows for optional cropping of the image if crop is set to true
 // The crop is centered around the center of the image
-inline pcl::PointCloud<pcl::PointXYZ>::Ptr depthFrameToPointCloud(const rs2::depth_frame& depth, const bool crop = false) {
+inline pcl::PointCloud<pcl::PointXYZ>::Ptr depthFrameToPointCloud(const rs2::depth_frame& depth, const bool crop = false,
+  const bool debugging = false) {
   // Convert depth frame to a PCL point cloud
   pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
   const rs2::pointcloud rs_cloud;
@@ -170,6 +171,10 @@ inline pcl::PointCloud<pcl::PointXYZ>::Ptr depthFrameToPointCloud(const rs2::dep
   cloud->width = x_stop - x_start;
   cloud->height = y_stop - y_start;
   cloud->is_dense = false;
+
+  if (debugging) {
+    std::cout << "PointCloud captured from Realsense camera has: " << cloud->size() << " data points." << std::endl;
+  }
   return cloud;
 }
 
@@ -537,13 +542,16 @@ inline void nearestKSearch (const flann::Index<flann::ChiSquareDistance<float> >
 }
 
 // Function to show the point clouds with increased point size
-inline void showPointClouds(const std::vector<std::string>& created_files) {
+inline void showPointClouds(const std::vector<std::string>& created_files, const bool ignore_vfh = false) {
   const pcl::visualization::PCLVisualizer::Ptr viewer(new pcl::visualization::PCLVisualizer("3D Viewer"));
   viewer->setBackgroundColor(0, 0, 0);
 
   for (const auto& file : created_files) {
     std::string pcd_file = file;
     if (file.substr(file.find_last_of(".") + 1) == "pcd" && file.find("_vfh.pcd") != std::string::npos) {
+      if (ignore_vfh) {
+        continue;
+      }
       // If the file is a VFH file, then we need to load the original file
       pcd_file = file.substr(0, file.find("_vfh.pcd")) + ".pcd";
     }

@@ -33,10 +33,9 @@ int main() {
   rs2::motion_frame accel_frame = frames.first_or_default(RS2_STREAM_ACCEL);
   rs2_vector accel_data = accel_frame.get_motion_data();
 
-  cloud = depthFrameToPointCloud(depth, true);
+  cloud = depthFrameToPointCloud(depth, true, true);
 
   pipe.stop();
-  std::cout << "PointCloud captured from Realsense camera has: " << cloud->size() << " data points." << std::endl;
 
   filterAndSegmentPointCloud(cloud, cloud_filtered, cluster_indices, true);
 

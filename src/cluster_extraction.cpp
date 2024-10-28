@@ -4,6 +4,7 @@
 #include <iostream>
 #include <cstdio> // for std::remove
 #include <filesystem>
+#include <regex>
 
 #include "pose_estimation.h"
 
@@ -11,14 +12,14 @@ int main () {
   const std::string object_name = "spray_bottle_tall";
   const std::string output_folder = "../lab_data/" + object_name + "/";
   // Define the angle (in degrees) that the object is facing
-  const float object_facing_angle = 90.0f; // Change this each capture
-  const float calibration_angle_offset = -40.0f; // Set this if your camera is not quite aligned
+  const std::regex float_regex(R"(^\d{1,3}(\.\d{1,6})?$)"); // Regex to match a float. Angle is between 0 and 360 and 6dp
+  float object_facing_angle = 0.0f; // Defines the angle of the object in degrees. 0 degrees is facing the camera
+  constexpr float calibration_angle_offset = -40.0f; // Set this if your camera is not quite aligned
+  constexpr int desired_cluster_size = 1;
 
   // Declare any variables so they don't have to be redefined each time
   std::unique_ptr<Eigen::Matrix4f> object_pose(new Eigen::Matrix4f());
   pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
-  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered(new pcl::PointCloud<pcl::PointXYZ>);
-  std::vector<pcl::PointIndices> cluster_indices;
 
   // Get the highest file number
   int file_num = 0;
@@ -48,6 +49,7 @@ int main () {
     // Wait for all configured streams to produce a frame
     auto frames = pipe.wait_for_frames(); // purposely does nothing with the frames
   }
+  std::cout << "Ready to capture point cloud. " << std::endl;
 
   // Get the camera orientation data
   rs2::frameset frames = pipe.wait_for_frames();
@@ -55,27 +57,53 @@ int main () {
   rs2_vector accel_data = accel_frame.get_motion_data();
 
   while (true) {
-    std::cout << "Ready to capture point cloud. " << std::endl;
-    std::cout << "Press any key when ready, or Q to quit" << std::endl;
+    std::cout << "Type in the angle of the object in degrees and press enter"<< std::endl;
+    std::cout << "Or type Q to quit" << std::endl;
 
-    char key;
-    std::cin >> key;
-    if (key == 'Q' || key == 'q') {
+    std::string input;
+    std::cin >> input;
+
+    if (input == "Q" || input == "q") {
       break;
     }
 
-    // Capture a frame
-    frames = pipe.wait_for_frames();
-    rs2::frame depth = frames.get_depth_frame();
-    depth = apply_post_processing_filters(depth);
+    if (std::regex_match(input, float_regex)) {
+      if (float angle = std::stof(input); angle >= 0.0f && angle <= 360.0f) {
+        std::stringstream ss;
+        ss << std::fixed << std::setprecision(4) << angle;
+        object_facing_angle = std::stof(ss.str());
+        std::cout << "Angle set to " << object_facing_angle << " degrees." << std::endl;
+      } else {
+        std::cout << "Invalid input. Please enter a number between 0 and 360." << std::endl;
+        continue;
+      }
+    } else {
+      std::cout << "Invalid input. Please enter a number between 0 and 360." << std::endl;
+      continue;
+    }
 
-    // Convert the depth frame to a PCL point cloud
-    cloud = depthFrameToPointCloud(depth, true);
+    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered(new pcl::PointCloud<pcl::PointXYZ>);
+    std::vector<pcl::PointIndices> cluster_indices;
+    while (true)
+    {
+      // Capture a frame
+      frames = pipe.wait_for_frames();
+      rs2::frame depth = frames.get_depth_frame();
+      depth = apply_post_processing_filters(depth);
 
-    std::cout << "PointCloud captured from Realsense camera has: " << cloud->size() << " data points." << std::endl;
+      // Convert the depth frame to a PCL point cloud
+      cloud = depthFrameToPointCloud(depth, true);
 
-    // Call the extracted function
-    filterAndSegmentPointCloud(cloud, cloud_filtered, cluster_indices, true);
+      // Call the extracted function
+      filterAndSegmentPointCloud(cloud, cloud_filtered, cluster_indices, false);
+
+      // Make sure there are only the number of clusters we expect
+      if (cluster_indices.size() == desired_cluster_size) {
+        // Output a message but don't input a newline
+        std::cout << "Clusters" << cluster_indices.size() << "... ";
+        break;
+      }
+    }
 
     // If no clusters are found, output a message
     if (!cluster_indices.empty()) {
@@ -116,7 +144,7 @@ int main () {
       }
 
       // Display the results to review
-      showPointClouds(created_files);
+      showPointClouds(created_files, true);
 
       std::cout << "Keep the result? y/[n]" << std::endl;
       char choice;
