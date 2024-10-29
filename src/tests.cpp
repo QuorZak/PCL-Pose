@@ -97,5 +97,10 @@ int main() {
 
   //streamDepthMap();
 
+  // 1258020693333_cluster_1_nxyz.pcd
+  // 1258020693333_cluster_0_nxyz.pcd
+  auto files = globFiles("/home/zak/Repos/Zak_POSE/lab_data/spray_bottle_tall/spray_bottle_tall_0001.pcd");
+  showPointClouds(files, true);
+
   return 0;
 }

@@ -6,7 +6,7 @@
 #include <filesystem>
 #include <regex>
 
-#include "pose_estimation.h"
+#include <pose_estimation.h>
 
 int main () {
   const std::string object_name = "spray_bottle_tall";
@@ -46,7 +46,6 @@ int main () {
 
   // Camera warmup - dropping several first frames to let auto-exposure stabilize
   for (int i = 0; i < 100; i++) {
-    // Wait for all configured streams to produce a frame
     auto frames = pipe.wait_for_frames(); // purposely does nothing with the frames
   }
   std::cout << "Ready to capture point cloud. " << std::endl;
@@ -84,34 +83,37 @@ int main () {
 
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered(new pcl::PointCloud<pcl::PointXYZ>);
     std::vector<pcl::PointIndices> cluster_indices;
-    while (true)
+    while (cluster_indices.size() != desired_cluster_size)
     {
       // Capture a frame
       frames = pipe.wait_for_frames();
       rs2::frame depth = frames.get_depth_frame();
-      depth = apply_post_processing_filters(depth);
+      rs2::frame filtered_depth = apply_post_processing_filters(depth);
 
       // Convert the depth frame to a PCL point cloud
-      cloud = depthFrameToPointCloud(depth, true);
+      cloud = depthFrameToPointCloud(filtered_depth, true, true);
 
       // Call the extracted function
-      filterAndSegmentPointCloud(cloud, cloud_filtered, cluster_indices, false);
+      // temp variables to store the output
+      pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered_local(new pcl::PointCloud<pcl::PointXYZ>);
+      std::vector<pcl::PointIndices> cluster_indices_local;
+      filterAndSegmentPointCloud(cloud, cloud_filtered_local, cluster_indices_local, true);
 
-      // Make sure there are only the number of clusters we expect
-      if (cluster_indices.size() == desired_cluster_size) {
-        // Output a message but don't input a newline
-        std::cout << "Clusters" << cluster_indices.size() << "... ";
-        break;
-      }
+      cloud_filtered = cloud_filtered_local;
+      cluster_indices = cluster_indices_local;
+
+      // Output a message but don't input a newline
+      std::cout << "Clusters:" << cluster_indices.size() << "... ";
     }
 
     // If no clusters are found, output a message
     if (!cluster_indices.empty()) {
       int j = 0;
+      pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cluster(new pcl::PointCloud<pcl::PointXYZ>);
       std::vector<std::string> created_files;
       pcl::PCDWriter writer;
       for (const auto& cluster : cluster_indices) {
-        pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cluster(new pcl::PointCloud<pcl::PointXYZ>);
+        cloud_cluster->clear(); // Ensure the cloud_cluster is cleared
         for (const auto& idx : cluster.indices) {
           cloud_cluster->push_back((*cloud_filtered)[idx]);
         }

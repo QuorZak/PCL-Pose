@@ -7,8 +7,8 @@ int main(int argc, char** argv) {
     auto thresh = DBL_MAX;
 
     std::vector<vfh_model> models;
-    flann::Matrix<int> k_indices;
-    flann::Matrix<float> k_distances;
+    Matrix<int> k_indices;
+    Matrix<float> k_distances;
 
     pcl::console::parse_argument(argc, argv, "-i", input_name);
     pcl::console::parse_argument(argc, argv, "-m", model_directory);
@@ -45,7 +45,7 @@ int main(int argc, char** argv) {
         for (size_t j = 0; j < data.cols; ++j)
             data[i][j] = models[i].second[j];
 
-    flann::Index<flann::ChiSquareDistance<float>> index(data, flann::LinearIndexParams());
+    Index<ChiSquareDistance<float>> index(data, LinearIndexParams());
     index.buildIndex();
 
     PoseManager pose_manager;
@@ -61,9 +61,9 @@ int main(int argc, char** argv) {
         float best_distance = std::numeric_limits<float>::max();
         int best_index = -1;
 
-        for (const auto& [header, indices] : *cluster_indices) {
+        for (const auto& cluster : *cluster_indices) {
             pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cluster(new pcl::PointCloud<pcl::PointXYZ>);
-            for (const auto& idx : indices) {
+            for (const auto& idx : cluster.indices) {
                 cloud_cluster->push_back(output_stream_cloud->points[idx]);
             }
 

@@ -252,6 +252,8 @@ inline void filterAndSegmentPointCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr
   ec.setSearchMethod(tree);
   ec.setInputCloud(cloud_filtered);
   ec.extract(cluster_indices);
+
+  cout << "Finished trying to find clusters " << endl;
 }
 
 
