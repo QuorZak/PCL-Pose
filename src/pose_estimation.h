@@ -78,9 +78,14 @@ inline extern PoseUpdateStabilityFactor stability_factor = PoseUpdateStabilityFa
 // Directory for reference models
 inline extern std::string model_directory = "../lab_data/spray_bottle_tall/"; // "../lab_data/";
 
-// Directory for fiducial markers
+// Parameters for fiducial markers
+inline int aruco_dict_number = 2; // DICT_4X4_50=0, DICT_4X4_100=1, DICT_4X4_250=2, DICT_4X4_1000=3, DICT_5X5_50=4, DICT_5X5_100=5...
+inline int aruco_marker_id = 11;
+inline int aruco_marker_pixels = 500; // Only used for generating markers
+inline float markerLength = 0.046f; // Marker length in meters
 inline extern std::string f_markers_location = "../f_markers/";
-inline extern std::string f_marker_name = "marker_55.png";
+inline extern std::string f_marker_name = "marker_" + std::to_string(aruco_marker_id)
+      + "_dict_" + std::to_string(aruco_dict_number) + "_size_" + std::to_string(aruco_marker_pixels) + ".png";
 
 // Post-processing filters for the depth frame
 // Threshold filter, Temporal filter, Hole filling filter

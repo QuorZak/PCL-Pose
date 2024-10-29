@@ -44,3 +44,7 @@ target_link_libraries(extraction_test ${PCL_LIBRARIES} realsense2 ${OpenCV_LIBS}
 # Build tree executable
 add_executable(build_tree src/pose_estimation.h src/build_tree.cpp)
 target_link_libraries(build_tree ${PCL_LIBRARIES} realsense2 ${OpenCV_LIBS} ${FLANN_LIBRARIES} ${HDF5_LIBRARIES} ${Boost_LIBRARIES})
+
+# Main Marker executable
+add_executable(marker src/pose_estimation.h src/main_marker.cpp)
+target_link_libraries(marker ${PCL_LIBRARIES} realsense2 ${OpenCV_LIBS} ${FLANN_LIBRARIES} ${HDF5_LIBRARIES} ${Boost_LIBRARIES})

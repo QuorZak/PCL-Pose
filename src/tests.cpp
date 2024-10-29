@@ -208,11 +208,16 @@ void find_best_match()
 
 // Generate and save openCv aruco markers
 void generateMarker() {
-  const cv::aruco::Dictionary dictionary = getPredefinedDictionary(cv::aruco::DICT_5X5_250);
+  const cv::aruco::Dictionary dictionary = cv::aruco::getPredefinedDictionary(aruco_dict_number);
   cv::Mat markerImage;
-  generateImageMarker(dictionary, 55, 100, markerImage, 1);
-  const std::string filename = f_markers_location + "marker_" + std::to_string(55) + ".png";
-  imwrite(filename, markerImage);
+  // Start with aruco_marker_id, then do it 7 more times (8 total), add 11 each time
+  for (int marker_id = aruco_marker_id; marker_id <= 88; marker_id = marker_id + 11) {
+    generateImageMarker(dictionary, marker_id, aruco_marker_pixels, markerImage, 1);
+    std::string f_marker_name = "marker_" + std::to_string(marker_id)
+      + "_dict_" + std::to_string(aruco_dict_number) + "_size_" + std::to_string(aruco_marker_pixels) + ".png";
+    const std::string filename = f_markers_location + f_marker_name;
+    imwrite(filename, markerImage);
+  }
 }
 
 // function to start up camera rgb, find specifically the marker generated in generate marker, and display it
@@ -241,6 +246,11 @@ cv::Mat distCoeffs = (cv::Mat_<double>(5, 1) << intrinsics.coeffs[0], intrinsics
   objPoints.ptr<Vec3f>(0)[2] = Vec3f(markerLength/2.f, -markerLength/2.f, 0);
   objPoints.ptr<Vec3f>(0)[3] = Vec3f(-markerLength/2.f, -markerLength/2.f, 0);
 
+  // Create the detector
+  cv::aruco::DetectorParameters detectorParams = cv::aruco::DetectorParameters();
+  cv::aruco::Dictionary dictionary = aruco::getPredefinedDictionary(aruco_dict_number);
+  cv::aruco::ArucoDetector detector(dictionary, detectorParams);
+
 while (true) {
   // Get the frames
   auto frames = pipe.wait_for_frames();
@@ -252,9 +262,6 @@ while (true) {
   // Detect the marker
   std::vector<int> markerIds;
   std::vector<std::vector<cv::Point2f>> markerCorners, rejectedCandidates;
-  cv::aruco::DetectorParameters detectorParams = cv::aruco::DetectorParameters();
-  cv::aruco::Dictionary dictionary = getPredefinedDictionary(cv::aruco::DICT_5X5_250);
-  cv::aruco::ArucoDetector detector(dictionary, detectorParams);
   detector.detectMarkers(frame, markerCorners, markerIds, rejectedCandidates);
 
   size_t nMarkers = markerCorners.size();
