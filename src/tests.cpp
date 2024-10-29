@@ -5,6 +5,8 @@
 #include <pcl/point_types.h>
 #include <pcl/console/print.h>
 
+#include <opencv2/objdetect/aruco_detector.hpp>
+
 void showPdcFile(const int usePclViewer = 0) {
   const std::string file = "../lab_data/mustard_small/*.pcd";
 
@@ -92,6 +94,190 @@ void streamDepthMap() {
   cv::destroyAllWindows();
 }
 
+void find_best_match()
+{
+  // Models
+  std::vector<vfh_model> models;
+
+  // Other required variables
+  Matrix<int> k_indices;
+  Matrix<float> k_distances;
+
+  // Initialize the RealSense pipeline
+  rs2::pipeline pipe;
+  rs2::config config;
+  config.enable_stream(RS2_STREAM_DEPTH, cam_res_width, cam_res_height, RS2_FORMAT_Z16, cam_fps); // Use global parameters
+  pipe.start(config);
+
+  // Initialize the filters which will be applied to the depth frame
+  initialise_filters();
+
+  // Load VFH model data
+  load_vfh_model_data(model_directory, models);
+
+  // Convert models to FLANN format
+  std::unique_ptr<float[]> data_ptr(new float[models.size() * models[0].second.size()]);
+  Matrix data(data_ptr.get(), models.size(), models[0].second.size());
+  for (size_t i = 0; i < data.rows; ++i)
+    for (size_t j = 0; j < data.cols; ++j)
+      data[i][j] = models[i].second[j];
+
+  // Build the FLANN index
+  Index<ChiSquareDistance<float>> index(data, LinearIndexParams());
+  index.buildIndex();
+
+  // Camera warmup - dropping several first frames to let auto-exposure stabilize
+  for (int i = 0; i < 100; i++) {
+    auto frames = pipe.wait_for_frames(); // purposely does nothing with the frames
+  }
+  std::cout << "Ready to capture point cloud." << std::endl;
+
+  // Capture a frame
+  rs2::frameset frames = pipe.wait_for_frames();
+  rs2::frame depth = frames.get_depth_frame();
+  rs2::frame filtered_depth = apply_post_processing_filters(depth);
+
+  // Convert the depth frame to a PCL point cloud
+  pcl::PointCloud<pcl::PointXYZ>::Ptr captured_cloud = depthFrameToPointCloud(filtered_depth, true, true);
+
+  // Segment the point cloud
+  pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered(new pcl::PointCloud<pcl::PointXYZ>);
+  std::vector<pcl::PointIndices> cluster_indices;
+  filterAndSegmentPointCloud(captured_cloud, cloud_filtered, cluster_indices, true);
+
+  // Compare the captured model to the models
+  pcl::PointCloud<pcl::PointXYZ>::Ptr best_cluster(new pcl::PointCloud<pcl::PointXYZ>);
+  float best_distance = std::numeric_limits<float>::max();
+  int best_index = -1;
+
+  for (const auto& cluster : cluster_indices) {
+    int k = 6;
+    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cluster(new pcl::PointCloud<pcl::PointXYZ>);
+    for (const auto& idx : cluster.indices) {
+      cloud_cluster->push_back(cloud_filtered->points[idx]);
+    }
+
+    // Compute the centroid of the point cloud
+    Eigen::Vector4f centroid;
+    compute3DCentroid(*cloud_cluster, centroid);
+
+    // Translate the point cloud to the origin (centroid)
+    Eigen::Affine3f transform = Eigen::Affine3f::Identity();
+    transform.translation() << -centroid[0], -centroid[1], -centroid[2];
+    transformPointCloud(*cloud_cluster, *cloud_cluster, transform);
+
+    pcl::PointCloud<pcl::VFHSignature308> signature;
+    estimate_VFH(cloud_cluster, signature);
+
+    vfh_model query_model;
+    query_model.second.assign(signature.points[0].histogram, signature.points[0].histogram + 308);
+    nearestKSearch(index, query_model, k, k_indices, k_distances);
+
+    if (k_distances[0][0] < best_distance) {
+      best_distance = k_distances[0][0];
+      best_index = k_indices[0][0];
+      *best_cluster = *cloud_cluster;
+    }
+  }
+
+  if (best_index != -1) {
+    // Load the best match model
+    pcl::PointCloud<pcl::PointXYZ>::Ptr best_match_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+    std::string best_match_name = models[best_index].first.substr(0, models[best_index].first.find("_vfh.pcd")) + ".pcd";
+    pcl::io::loadPCDFile(best_match_name, *best_match_cloud);
+
+    cout << "Best match name: " << best_match_name << std::endl;
+
+    // Visualize both point clouds
+    pcl::visualization::PCLVisualizer::Ptr viewer(new pcl::visualization::PCLVisualizer("3D Viewer"));
+    viewer->setBackgroundColor(0, 0, 0);
+    viewer->addPointCloud<pcl::PointXYZ>(best_cluster, "best_cluster");
+    viewer->addPointCloud<pcl::PointXYZ>(best_match_cloud, "best_match_cloud");
+    viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 5, "best_cluster");
+    viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 5, "best_match_cloud");
+    viewer->initCameraParameters();
+
+    while (!viewer->wasStopped()) {
+      viewer->spinOnce(100);
+      std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+  }
+
+  pipe.stop();
+}
+
+// Generate and save openCv aruco markers
+void generateMarker() {
+  const cv::aruco::Dictionary dictionary = getPredefinedDictionary(cv::aruco::DICT_5X5_250);
+  cv::Mat markerImage;
+  generateImageMarker(dictionary, 55, 100, markerImage, 1);
+  const std::string filename = f_markers_location + "marker_" + std::to_string(55) + ".png";
+  imwrite(filename, markerImage);
+}
+
+// function to start up camera rgb, find specifically the marker generated in generate marker, and display it
+void findMarkerAndPose() {
+  using namespace cv;
+  // Initialize the RealSense pipeline
+  rs2::pipeline pipe;
+  rs2::config config;
+  config.enable_stream(RS2_STREAM_COLOR, cam_res_width, cam_res_height, RS2_FORMAT_BGR8, cam_fps); // Use global parameters
+  pipe.start(config);
+
+  // Load the marker image
+  cv::Mat marker = cv::imread(f_markers_location + f_marker_name, cv::IMREAD_COLOR);
+
+  while (true) {
+    // Get the frames
+    auto frames = pipe.wait_for_frames();
+    auto color_frame = frames.get_color_frame();
+
+    // Convert the frame to an OpenCV image
+    cv::Mat frame(cv::Size(cam_res_width, cam_res_height), CV_8UC3, const_cast<void*>(color_frame.get_data()), cv::Mat::AUTO_STEP);
+
+    // Detect the marker
+    std::vector<int> markerIds;
+    std::vector<std::vector<cv::Point2f>> markerCorners, rejectedCandidates;
+    cv::aruco::DetectorParameters detectorParams = cv::aruco::DetectorParameters();
+    cv::aruco::Dictionary dictionary = getPredefinedDictionary(cv::aruco::DICT_5X5_250);
+    cv::aruco::ArucoDetector detector(dictionary, detectorParams);
+    detector.detectMarkers(frame, markerCorners, markerIds, rejectedCandidates);
+
+    size_t nMarkers = markerCorners.size();
+    std::vector<Vec3d> rvecs(nMarkers), tvecs(nMarkers);
+
+    if(estimatePose && !markerIds.empty()) {
+      // Calculate pose for each marker
+      for (size_t i = 0; i < nMarkers; i++) {
+        solvePnP(objPoints, markerCorners.at(i), camMatrix, distCoeffs, rvecs.at(i), tvecs.at(i));
+      }
+    }
+
+    // If the marker is detected, draw the marker
+    if (!markerIds.empty()) {
+      cv::aruco::drawDetectedMarkers(frame, markerCorners, markerIds);
+      for(unsigned int i = 0; i < markerIds.size(); i++)
+        cv::drawFrameAxes(frame, camMatrix, distCoeffs, rvecs[i], tvecs[i], markerLength * 1.5f, 2);
+    }
+
+    // Display the frame
+    cv::imshow("Frame", frame);
+
+    // If the user presses a key
+    if (cv::waitKey(1) >= 0) {
+      break;
+    }
+  }
+  pipe.stop();
+  destroyAllWindows();
+}
+
+
+
+
+
+
+
 int main() {
   //showPdcFile(1);
 
@@ -99,8 +285,13 @@ int main() {
 
   // 1258020693333_cluster_1_nxyz.pcd
   // 1258020693333_cluster_0_nxyz.pcd
-  auto files = globFiles("/home/zak/Repos/Zak_POSE/lab_data/spray_bottle_tall/spray_bottle_tall_0001.pcd");
-  showPointClouds(files, true);
+  //auto files = globFiles("/home/zak/Repos/Zak_POSE/lab_data/spray_bottle_tall/spray_bottle_tall_0003.pcd");
+  //showPointClouds(files, true);
+  //find_best_match();
+
+  //generateMarker();
+  findMarkerAndPose();
+
 
   return 0;
 }

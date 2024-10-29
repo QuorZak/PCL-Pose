@@ -13,7 +13,7 @@ find_package(realsense2 REQUIRED)
 include_directories(${realsense2_INCLUDE_DIRS})
 
 # OpenCV
-find_package(OpenCV REQUIRED)
+find_package(OpenCV 4.7 REQUIRED)
 include_directories(${OpenCV_INCLUDE_DIRS})
 
 # Others

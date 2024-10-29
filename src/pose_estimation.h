@@ -76,7 +76,11 @@ enum class PoseUpdateStabilityFactor {
 inline extern PoseUpdateStabilityFactor stability_factor = PoseUpdateStabilityFactor::Resistant;
 
 // Directory for reference models
-inline extern std::string model_directory = "../lab_data/"; // "../lab_data/";
+inline extern std::string model_directory = "../lab_data/spray_bottle_tall/"; // "../lab_data/";
+
+// Directory for fiducial markers
+inline extern std::string f_markers_location = "../f_markers/";
+inline extern std::string f_marker_name = "marker_55.png";
 
 // Post-processing filters for the depth frame
 // Threshold filter, Temporal filter, Hole filling filter
