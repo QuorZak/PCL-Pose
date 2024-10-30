@@ -8,7 +8,7 @@
 #include <opencv2/objdetect/aruco_detector.hpp>
 
 void showPdcFile(const int usePclViewer = 0) {
-  const std::string file = "../lab_data/mustard_small/*.pcd";
+  const std::string file = "../lab_data/spray_bottle_tall/*.pcd";
 
   if (usePclViewer == 1) { // Show the file
     const std::string command = "pcl_viewer " + file;
@@ -270,7 +270,13 @@ while (true) {
   if(estimatePose && !markerIds.empty()) {
     // Calculate pose for each marker
     for (size_t i = 0; i < nMarkers; i++) {
-      solvePnP(objPoints, markerCorners.at(i), camMatrix, distCoeffs, rvecs.at(i), tvecs.at(i));
+      bool success = solvePnP(objPoints, markerCorners.at(i), camMatrix, distCoeffs, rvecs.at(i), tvecs.at(i));
+      if (success) {
+        std::cout << "Rotation Vector: " << rvecs.at(i) << std::endl;
+        std::cout << "Translation Vector: " << tvecs.at(i) << std::endl;
+      } else {
+        std::cerr << "Could not solve PnP problem." << std::endl;
+      }
     }
   }
 
@@ -294,24 +300,39 @@ destroyAllWindows();
 }
 
 
+void findObjectPose(const std::vector<cv::Point3d>& objectPoints,
+                    const std::vector<cv::Point2d>& imagePoints,
+                    const cv::Mat& cameraMatrix,
+                    const cv::Mat& distCoeffs,
+                    cv::Vec3d& rvec,
+                    cv::Vec3d& tvec) {
+  // Use solvePnP to find the rotation and translation vectors
+  bool success = cv::solvePnP(objectPoints, imagePoints, cameraMatrix, distCoeffs, rvec, tvec, false, cv::SOLVEPNP_ITERATIVE);
 
+  if (success) {
+    std::cout << "Rotation Vector: " << rvec << std::endl;
+    std::cout << "Translation Vector: " << tvec << std::endl;
+  } else {
+    std::cerr << "Could not solve PnP problem." << std::endl;
+  }
+}
 
 
 
 
 int main() {
-  //showPdcFile(1);
+  showPdcFile(2);
 
   //streamDepthMap();
 
   // 1258020693333_cluster_1_nxyz.pcd
   // 1258020693333_cluster_0_nxyz.pcd
-  //auto files = globFiles("/home/zak/Repos/Zak_POSE/lab_data/spray_bottle_tall/spray_bottle_tall_0003.pcd");
+  //auto files = globFiles("/home/zak/Repos/Zak_POSE/lab_data/spray_bottle_tall/spray_bottle_tall_0007.pcd");
   //showPointClouds(files, true);
   //find_best_match();
 
   //generateMarker();
-  findMarkerAndPose();
+  //findMarkerAndPose();
 
 
   return 0;

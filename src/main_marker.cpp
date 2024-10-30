@@ -22,7 +22,7 @@ void findMarkerAndPose() {
 
   // set coordinate system
   float markerLength = 0.1f;
-  cv::Mat objPoints(4, 1, CV_32FC3);
+  Mat objPoints(4, 1, CV_32FC3);
   objPoints.ptr<Vec3f>(0)[0] = Vec3f(-markerLength/2.f, markerLength/2.f, 0);
   objPoints.ptr<Vec3f>(0)[1] = Vec3f(markerLength/2.f, markerLength/2.f, 0);
   objPoints.ptr<Vec3f>(0)[2] = Vec3f(markerLength/2.f, -markerLength/2.f, 0);
@@ -47,12 +47,26 @@ void findMarkerAndPose() {
     detector.detectMarkers(frame, markerCorners, markerIds, rejectedCandidates);
 
     size_t nMarkers = markerCorners.size();
-    std::vector<Vec3d> rvecs(nMarkers), tvecs(nMarkers);
+    std::vector<Vec3d> rot_vects(nMarkers), trans_vects(nMarkers);
+
+    // create 6d pose variables
+    std::vector<Eigen::Matrix4f> poses(nMarkers);
 
     if(!markerIds.empty()) {
       // Calculate pose for each marker
       for (size_t i = 0; i < nMarkers; i++) {
-        solvePnP(objPoints, markerCorners.at(i), camMatrix, distCoeffs, rvecs.at(i), tvecs.at(i));
+        solvePnP(objPoints, markerCorners.at(i), camMatrix, distCoeffs, rot_vects.at(i), trans_vects.at(i));
+
+        // Take rot and trans and make a 6d pose
+        Eigen::MatrixXd rot_mat;
+        cv::Mat rot_mat_cv;
+        cv::Rodrigues(rot_vects.at(i), rot_mat_cv);
+        cv::cv2eigen(rot_mat_cv, rot_mat);
+        poses[i].setIdentity();
+        poses[i].block<3, 3>(0, 0) = rot_mat.cast<float>();
+        poses[i].block<3, 1>(0, 3) = Eigen::Vector3f(trans_vects[i][0], trans_vects[i][1], trans_vects[i][2]);
+
+        std::cout << "Pose: " << poses[i] << std::endl;
       }
     }
 
@@ -60,7 +74,7 @@ void findMarkerAndPose() {
     if (!markerIds.empty()) {
       aruco::drawDetectedMarkers(frame, markerCorners, markerIds);
       for(unsigned int i = 0; i < markerIds.size(); i++)
-        drawFrameAxes(frame, camMatrix, distCoeffs, rvecs[i], tvecs[i], markerLength * 1.5f, 2);
+        drawFrameAxes(frame, camMatrix, distCoeffs, rot_vects[i], trans_vects[i], markerLength * 1.5f, 2);
     }
 
     // Display the frame
