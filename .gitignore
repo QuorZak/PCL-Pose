@@ -23,5 +23,6 @@ Thumbs.db
 # PCL Demo
 /PCL_Official_VFH_Demo/
 
-# Lab data - For now it changes too often
+# Test Data
+/lab_data/test/
 /pose_estimation_cluster/

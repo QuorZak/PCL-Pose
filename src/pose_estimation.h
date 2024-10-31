@@ -577,7 +577,9 @@ inline void showPointClouds(const std::vector<std::string>& created_files, const
   }
 
   // Add coordinate axes to the viewer
-  viewer->addCoordinateSystem(0.1); // The size of the axes
+  viewer->setBackgroundColor(0, 0, 0);
+  viewer->addCoordinateSystem(0.1);
+  viewer->initCameraParameters();
 
   while (!viewer->wasStopped()) {
     viewer->spinOnce(100);
@@ -692,17 +694,19 @@ inline void displayCoordinateSystem(const Eigen::Matrix4f& pose, cv::Mat& frame,
 // This function takes a point cloud and sets the origin to the center of the point cloud
 // It also sets the axes to the principal axes of the point cloud, currently y = up, z = forward/front of the object
 // 0 degrees is defined as directly facing the camera
+
+// DEPRECATED: This function is not used anymore - it was replaced by setGlobalOriginAndAxes
 inline void getPointCloudOriginAndAxes(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud_cluster, Eigen::Matrix4f& pose,
   const float object_facing_angle, const float calibration_angle_offset, const rs2_vector& accel_data) {
 
-  // Compute the centroid of the point cloud
+  /*// Compute the centroid of the point cloud
   Eigen::Vector4f centroid;
   compute3DCentroid(*cloud_cluster, centroid);
 
   // Translate the point cloud to the origin (centroid)
   Eigen::Affine3f transform = Eigen::Affine3f::Identity();
   transform.translation() << -centroid[0], -centroid[1], -centroid[2];
-  transformPointCloud(*cloud_cluster, *cloud_cluster, transform);
+  transformPointCloud(*cloud_cluster, *cloud_cluster, transform);*/
 
   Eigen::Vector3f gravity_direction(accel_data.x, accel_data.y, accel_data.z);
   gravity_direction.normalize();
@@ -720,6 +724,36 @@ inline void getPointCloudOriginAndAxes(const pcl::PointCloud<pcl::PointXYZ>::Ptr
 
   // TODO: Figure out this object rotation a bit better and more efficiently
   // Now that the y direction is set, we can rotate the object to align with zero degrees
+  Eigen::Matrix3f object_rotation; // Some - and + values to get 0 to be approximately directly away from the camera
+  object_rotation = Eigen::AngleAxisf(M_PI * (object_facing_angle+calibration_angle_offset) / 180.0f, Eigen::Vector3f::UnitY());
+  pose.block<3, 3>(0, 0) = object_rotation * pose.block<3, 3>(0, 0);
+
+  // The x-axis can be set to the cross product of the y-axis and z-axis
+  pose.block<3, 1>(0, 0) = pose.block<3, 1>(0, 1).cross(pose.block<3, 1>(0, 2));
+}
+
+// This function transforms the camera coordinate system to the global coordinate system
+// Is it currently the camera's position rectified (y pointing directly up, z is the same direction as/parallel to the front of the object)
+// The global coordinate system is defined as the camera's position when the program starts
+inline void setGlobalOriginAndAxes(Eigen::Matrix4f& pose, const float object_facing_angle,
+  const float calibration_angle_offset, const rs2_vector& accel_data) {
+
+  // Get the gravity direction from the accelerometer data
+  Eigen::Vector3f gravity_direction(accel_data.x, accel_data.y, accel_data.z);
+  gravity_direction.normalize();
+
+  // Calculate the angle between the y-axis and the gravity direction
+  const Eigen::Vector3f y_axis = Eigen::Vector3f::UnitY();
+  const float angle = acos(y_axis.dot(gravity_direction));
+
+  // Subtract the angle from the gravity direction
+  const auto rotation_quart = Eigen::Quaternionf(Eigen::AngleAxisf(-angle, y_axis.cross(gravity_direction).normalized()));
+  pose.block<3, 3>(0, 0)  = -rotation_quart.toRotationMatrix();
+
+  /*// Apply the opposite of the resulting transformation to the point cloud (to point away from gravity)
+  pose.block<3, 3>(0, 0) = -y_align_rotation;*/
+
+  // Now that the y direction is set, we can rotate the coordinate to align with the 'forward' direction
   Eigen::Matrix3f object_rotation; // Some - and + values to get 0 to be approximately directly away from the camera
   object_rotation = Eigen::AngleAxisf(M_PI * (object_facing_angle+calibration_angle_offset) / 180.0f, Eigen::Vector3f::UnitY());
   pose.block<3, 3>(0, 0) = object_rotation * pose.block<3, 3>(0, 0);

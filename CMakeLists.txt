@@ -1,4 +1,6 @@
 cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 project(pose)
 
@@ -47,4 +49,8 @@ target_link_libraries(build_tree ${PCL_LIBRARIES} realsense2 ${OpenCV_LIBS} ${FL
 
 # Main Marker executable
 add_executable(marker src/pose_estimation.h src/main_marker.cpp)
-target_link_libraries(marker ${PCL_LIBRARIES} realsense2 ${OpenCV_LIBS} ${FLANN_LIBRARIES} ${HDF5_LIBRARIES} ${Boost_LIBRARIES})
+target_link_libraries(marker realsense2 ${OpenCV_LIBS} ${FLANN_LIBRARIES} ${HDF5_LIBRARIES} ${Boost_LIBRARIES})
+
+# Marker Tests executable
+add_executable(marker_tests src/marker_pose_estimation.h src/marker_tests.cpp)
+target_link_libraries(marker_tests realsense2 ${OpenCV_LIBS} ${FLANN_LIBRARIES} ${HDF5_LIBRARIES} ${Boost_LIBRARIES})
