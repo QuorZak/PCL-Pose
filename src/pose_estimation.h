@@ -34,13 +34,22 @@
 #include <opencv2/opencv.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 
+/*#include <ros/ros.h>
+#include <moveit/move_group_interface/move_group_interface.h>
+#include <moveit/planning_scene_interface/planning_scene_interface.h>
+#include <moveit_msgs/DisplayRobotState.h>
+#include <moveit_msgs/DisplayTrajectory.h>
+#include <moveit_msgs/AttachedCollisionObject.h>
+#include <moveit_msgs/CollisionObject.h>
+#include <geometry_msgs/PoseStamped.h>*/
+
 // Define vfh_model type for storing data file name and histogram data
 typedef std::pair<std::string, std::vector<float> > vfh_model;
 
 // Declare global variables that all functions in the .cpp files can access
-inline extern const int image_reduced_to_percentage = 60;
-inline extern const float depth_filter_min_distance = 0.5f;
-inline extern const float depth_filter_max_distance = 1.0f;
+inline extern const int image_reduced_to_percentage = 70;
+inline extern const float depth_filter_min_distance = 0.3f;
+inline extern const float depth_filter_max_distance = 0.6f;
 
 // Global camera config params
 // 848x480 resolution, 15 frames per second is optimal for Realsense D455
@@ -49,14 +58,15 @@ inline extern const int cam_res_height = 480; // Standard 480
 inline extern const int cam_fps = 15;
 
 // Parameters for cloud filtering
-inline extern const float leaf_size = 0.008f; // 0.01f default
-inline extern const float cluster_tolerance = 0.01f; // 0.02 default
-inline extern const int min_cluster_size = 200; // 100 default
-inline extern const int max_cluster_size = 1000; // 25000 default
+inline extern const float leaf_size = 0.01f; // 0.01f default
+inline extern const float cluster_tolerance = 0.02f; // 0.02 default
+inline extern const int min_cluster_size = 150; // 100 default
+inline extern const int max_cluster_size = 800; // 25000 default
 inline extern const float segment_distance_threshold = 0.02f; // 0.02 default
 inline extern const float segment_probability = 0.99f; // try 0.99 ? Increase the probability to get a good sample
 inline extern const float segment_radius_min = 0.01f; // try 0.01 ? Set radius limits to avoid collinear points
 inline extern const float segment_radius_max = 0.1f; // try 0.1 ?
+inline extern const float filter_cluster_to_x_percent = 0.99f; // 0.4 default
 
 // Parameters for Pose Estimation
 inline extern int icp_max_iterations = 50; // Maximum number of ICP iterations
@@ -74,6 +84,25 @@ enum class PoseUpdateStabilityFactor {
   VeryResistant = 5
 };
 inline extern PoseUpdateStabilityFactor stability_factor = PoseUpdateStabilityFactor::Resistant;
+
+// Define the transform to convert from camera frame to robot frame
+// For now is manually set. The camera is -50mm y, +10mm z, 0 x from the robot frame
+// The rotation is the same as the robot frame
+inline extern Eigen::Matrix4f camera_to_robot_frame = (Eigen::Matrix4f() <<
+  1, 0, 0, 0,
+  0, 1, 0, -0.05,
+  0, 0, 1, 0.01,
+  0, 0, 0, 1).finished();
+
+inline extern Eigen::Matrix4f robot_to_camera_frame = (Eigen::Matrix4f() <<
+  1, 0, 0, 0,
+  0, 1, 0, +0.05,
+  0, 0, 1, -0.01,
+  0, 0, 0, 1).finished();
+
+// Camera rotation for home position. This is the rotation that needs to be applied each time we move the camera from home
+// The rotation needing to be applied around the x-axis is +22 degrees wrt the tool frame.
+inline extern float camera_rotation_home_position = 24.0f;
 
 // Directory for reference models
 inline extern std::string model_directory = "../lab_data/spray_bottle_tall/"; // "../lab_data/";
@@ -127,7 +156,7 @@ inline void initialise_filters() {
 }
 
 // Apply post-processing filters to the depth frame
-inline rs2::depth_frame apply_post_processing_filters(rs2::depth_frame depth) {
+inline rs2::depth_frame apply_depth_post_processing_filters(rs2::depth_frame depth) {
   depth = threshold_filter.process(depth);
   depth = temporal_filter.process(depth);
   //depth = hole_filling_filter.process(depth);
@@ -172,8 +201,8 @@ inline pcl::PointCloud<pcl::PointXYZ>::Ptr depthFrameToPointCloud(const rs2::dep
     for (int x = x_start; x < x_stop; x++, i++) {
       const int index = y * width + x;
       cloud->points[i].x = vertices[index].x;
-      cloud->points[i].y = -vertices[index].y;
-      cloud->points[i].z = -vertices[index].z;
+      cloud->points[i].y = vertices[index].y;
+      cloud->points[i].z = vertices[index].z;
     }
   }
   // set the size of the point cloud
@@ -220,7 +249,7 @@ inline void filterAndSegmentPointCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr
 
   // Create the filtering object
   pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_f(new pcl::PointCloud<pcl::PointXYZ>);
-  while (cloud_filtered->size () > 0.4 * nr_points) {
+  while (cloud_filtered->size () > filter_cluster_to_x_percent * nr_points) {
   // while (filter_count < 1) {
     // Segment the largest planar component from the remaining cloud
     seg.setInputCloud(cloud_filtered);
@@ -262,24 +291,27 @@ inline void filterAndSegmentPointCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr
   ec.setInputCloud(cloud_filtered);
   ec.extract(cluster_indices);
 
-  cout << "Finished trying to find clusters " << endl;
+  if (debugging)
+  {
+    cout << "Finished trying to find clusters " << endl;
+  }
 }
 
 
 [[noreturn]] inline void processPointCloud(const rs2::pipeline& pipeline,
-  pcl::PointCloud<pcl::PointXYZ>::Ptr& output_stream_cloud,const std::shared_ptr<std::vector<pcl::PointIndices>>& cluster_indices,
-  std::mutex& mtx, std::condition_variable& cv, bool& ready)
+  pcl::PointCloud<pcl::PointXYZ>::Ptr& output_stream_cloud, const std::shared_ptr<std::vector<pcl::PointIndices>>& cluster_indices,
+  const bool& debug, std::mutex& mtx, std::condition_variable& cv, bool& ready)
 {
   while (true) {
     auto frames = pipeline.wait_for_frames();
     const auto depth = frames.get_depth_frame();
-    rs2::depth_frame filtered_depth = apply_post_processing_filters(depth);
-    auto cloud = depthFrameToPointCloud(filtered_depth, true);
+    rs2::depth_frame filtered_depth = apply_depth_post_processing_filters(depth);
+    auto cloud = depthFrameToPointCloud(filtered_depth, true, debug);
     pcl::PointCloud<pcl::PointXYZ>::Ptr filtered_cloud_clusters(new pcl::PointCloud<pcl::PointXYZ>);
     std::vector<pcl::PointIndices> cluster_indices_local;
-    filterAndSegmentPointCloud(cloud, filtered_cloud_clusters, cluster_indices_local);
+    filterAndSegmentPointCloud(cloud, filtered_cloud_clusters, cluster_indices_local, debug);
 
-    if (cluster_indices_local.empty()) {
+    if (cluster_indices_local.empty() && debug) {
       std::cout << "No clusters found." << std::endl;
       continue;
     }
@@ -399,7 +431,9 @@ inline bool load_vfh_histogram (const boost::filesystem::path &path, vfh_model &
 // then pushes the results into a vfh_model vector to keep them in a data storage
 // Input: Model data set file path
 // Output: A vfh_model vector that contains all VFH signature information
-inline void load_vfh_model_data(const boost::filesystem::path &base_dir, std::vector<vfh_model> &models) {
+inline void load_vfh_model_data(const boost::filesystem::path &base_dir, std::vector<vfh_model> &models,
+  std::vector<std::string> &model_files) {
+
   if (!exists(base_dir) || !is_directory(base_dir)) {
     return;
   }
@@ -420,6 +454,7 @@ inline void load_vfh_model_data(const boost::filesystem::path &base_dir, std::ve
         vfh_model m;
         if (load_vfh_histogram(i->path().string(), m)) {
           models.push_back(m);
+          model_files.push_back(i->path().string()); // Store the file name
           vfh_count++;
         }
       }
@@ -604,11 +639,15 @@ class PoseManager {
 public:
   PoseManager() : stored_pose(Eigen::Matrix4f::Identity()) {}
 
-  void updatePose(const Eigen::Matrix4f& new_pose) {
-    const float distance = (stored_pose.block<3, 1>(0, 3) - new_pose.block<3, 1>(0, 3)).norm();
+  void setPose(const Eigen::Matrix4f& pose) {
+    stored_pose = pose;
+  }
+
+  void updatePose(const Eigen::Matrix4f& pose) {
+    const float distance = (stored_pose.block<3, 1>(0, 3) - pose.block<3, 1>(0, 3)).norm();
     const float update_factor = calculateUpdateFactor(distance);
 
-    stored_pose = update_factor * new_pose + (1.0f - update_factor) * stored_pose;
+    stored_pose = update_factor * pose + (1.0f - update_factor) * stored_pose;
   }
 
   [[nodiscard]] Eigen::Matrix4f getPose() const {

@@ -7,8 +7,8 @@
 
 
 void showPdcFile(const int usePclViewer = 0) {
-  const std::string file = "../lab_data/test//spray_bottle_tall_0008.pcd";
-  //const std::string file = "../lab_data/spray_bottle_tall/spray_bottle_tall_0015.pcd";
+  //const std::string file = "../lab_data/test/spray_bottle_tall_0008.pcd";
+  const std::string file = "../lab_data/spray_bottle_tall/spray_bottle_tall_0007.pcd";
 
   if (usePclViewer == 1) { // Show the file
     const std::string command = "pcl_viewer " + file;
@@ -63,7 +63,7 @@ void streamDepthMap() {
     auto depth = frames.get_depth_frame();
 
     // Apply a depth threshold filter
-    depth = apply_post_processing_filters(depth);
+    depth = apply_depth_post_processing_filters(depth);
 
     // Get size of the depth frame
     auto width = depth.get_width();
@@ -135,7 +135,7 @@ void find_best_match()
   // Capture a frame
   rs2::frameset frames = pipe.wait_for_frames();
   rs2::frame depth = frames.get_depth_frame();
-  rs2::frame filtered_depth = apply_post_processing_filters(depth);
+  rs2::frame filtered_depth = apply_depth_post_processing_filters(depth);
 
   // Convert the depth frame to a PCL point cloud
   pcl::PointCloud<pcl::PointXYZ>::Ptr captured_cloud = depthFrameToPointCloud(filtered_depth, true, true);
@@ -206,17 +206,48 @@ void find_best_match()
   pipe.stop();
 }
 
+/*// Move the arm forward by x cm
+void moveArmForward(float x_change) {
+  ros::NodeHandle node_handle;
+  ros::AsyncSpinner spinner(1);
+  spinner.start();
+
+  moveit::planning_interface::MoveGroupInterface move_group("manipulator");
+  moveit::planning_interface::PlanningSceneInterface planning_scene_interface;
+
+  geometry_msgs::PoseStamped current_pose = move_group.getCurrentPose();
+  geometry_msgs::Pose target_pose = current_pose.pose;
+  target_pose.position.x += x_change; // Move forward by x cm
+
+  move_group.setPoseTarget(target_pose);
+
+  moveit::planning_interface::MoveGroupInterface::Plan my_plan;
+  bool success = (move_group.plan(my_plan) == moveit::planning_interface::MoveItErrorCode::SUCCESS);
+
+  if (success) {
+    move_group.move();
+    ROS_INFO("Move successful");
+  } else {
+    ROS_WARN("Move failed");
+  }
+
+  ros::shutdown();
+}*/
+
 
 int main() {
-  showPdcFile(2);
+  //showPdcFile(2);
 
-  //streamDepthMap();
+  streamDepthMap();
 
   // 1258020693333_cluster_1_nxyz.pcd
   // 1258020693333_cluster_0_nxyz.pcd
   //auto files = globFiles("/home/zak/Repos/Zak_POSE/lab_data/spray_bottle_tall/spray_bottle_tall_0007.pcd");
   //showPointClouds(files, true);
   //find_best_match();
+
+  /*ros::init(argc, argv, "move_arm_forward_test");
+  moveArmForward(0.02f);*/
 
   return 0;
 }

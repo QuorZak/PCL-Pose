@@ -88,7 +88,7 @@ int main () {
       // Capture a frame
       frames = pipe.wait_for_frames();
       rs2::frame depth = frames.get_depth_frame();
-      rs2::frame filtered_depth = apply_post_processing_filters(depth);
+      rs2::frame filtered_depth = apply_depth_post_processing_filters(depth);
 
       // Convert the depth frame to a PCL point cloud
       cloud = depthFrameToPointCloud(filtered_depth, true, true);
@@ -106,7 +106,6 @@ int main () {
       std::cout << "Clusters:" << cluster_indices.size() << "... ";
     }
 
-    // If no clusters are found, output a message
     if (!cluster_indices.empty()) {
       int j = 0;
       pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cluster(new pcl::PointCloud<pcl::PointXYZ>);
