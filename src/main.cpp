@@ -83,7 +83,7 @@ int main(int argc, char** argv) {
 
         if (best_index != -1) {
             Eigen::Matrix4f new_pose = estimatePose(output_stream_cloud, best_cluster);
-            pose_manager.updatePose(new_pose);
+            pose_manager.updatePose(new_pose, true);
             Eigen::Matrix4f stored_pose = pose_manager.getPose();
             std::cout << "Updated Pose:\n" << stored_pose << std::endl;
 

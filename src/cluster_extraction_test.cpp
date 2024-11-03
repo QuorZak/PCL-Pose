@@ -11,7 +11,7 @@ int main() {
   const std::string test_name = "spray_bottle_tall";
   const std::string output_folder = "../lab_data/test/";
   //const std::string output_folder = "../lab_data/" + test_name + "/";
-  const float object_facing_angle = 0.0f; // Change this each capture
+  const float object_facing_angle = 315.0f; // Change this each capture
   const float calibration_angle_offset = -40.0f; // Set this if your camera is not quite aligned
 
   // Get the highest file number
@@ -68,13 +68,13 @@ int main() {
   std::vector<pcl::PointIndices> cluster_indices;
   filterAndSegmentPointCloud(cloud, cloud_filtered, cluster_indices, true);
 
-  /*// Clear out all the files in the output folder
+  // Clear out all the files in the output folder
   const std::string clear_command = "rm -f " + output_folder + test_name + "_*.pcd";
   if (const int result = std::system(clear_command.c_str()); result != 0) {
     std::cerr << "Failed to execute rm command" << std::endl;
   } else {
     std::cout << "Cleared out all the files in the output folder" << std::endl;
-  }*/
+  }
 
   if (cluster_indices.empty()) {
     std::cout << "No clusters found." << std::endl;
@@ -112,11 +112,11 @@ int main() {
     j++;
   }
 
-  //const std::string files_to_show_pattern = output_folder + test_name + "_*.pcd";
-  //std::vector<std::string> files_to_show = globFiles(files_to_show_pattern);
-  //showPointClouds(files_to_show);
+  const std::string files_to_show_pattern = output_folder + test_name + "_*.pcd";
+  std::vector<std::string> files_to_show = globFiles(files_to_show_pattern);
+  showPointClouds(files_to_show);
 
-  showPointClouds({output_file});
+  //showPointClouds({output_file});
 
   return 0;
 }

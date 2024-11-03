@@ -48,7 +48,7 @@
 typedef std::pair<std::string, std::vector<float> > vfh_model;
 
 // Declare global variables that all functions in the .cpp files can access
-inline extern const int image_reduced_to_percentage = 70;
+inline extern const int image_reduced_to_percentage = 60;
 inline extern const float depth_filter_min_distance = 0.3f;
 inline extern const float depth_filter_max_distance = 0.6f;
 
@@ -59,9 +59,9 @@ inline extern const int cam_res_height = 480; // Standard 480
 inline extern const int cam_fps = 15;
 
 // Parameters for cloud filtering
-inline extern const float leaf_size = 0.01f; // 0.01f default
-inline extern const float cluster_tolerance = 0.02f; // 0.02 default
-inline extern const int min_cluster_size = 150; // 100 default
+inline extern const float leaf_size = 0.07f; // 0.01f default
+inline extern const float cluster_tolerance = 0.015f; // 0.02 default
+inline extern const int min_cluster_size = 100; // 100 default
 inline extern const int max_cluster_size = 800; // 25000 default
 inline extern const float segment_distance_threshold = 0.02f; // 0.02 default
 inline extern const float segment_probability = 0.99f; // try 0.99 ? Increase the probability to get a good sample
@@ -87,24 +87,43 @@ enum class PoseUpdateStabilityFactor {
 inline extern PoseUpdateStabilityFactor stability_factor = PoseUpdateStabilityFactor::Resistant;
 
 // Define the transform to convert from camera frame to robot end effector frame (TCP)
-// For now is manually set. The camera is -50mm y, +10mm z, 0 x from the robot frame
+// For now is manually set. The front, middle surface of the camera is 0 x, -60mm y, +31mm z, from the robot frame
+// The ground truth adjustment for the depth reading regarding Intel D455 is -4.55mm z from the front surface
+// The calibration of the camera means that it is aligned to the left lens. To get the center shift 45mm
 // The rotation is the same as the robot frame
 inline extern const Eigen::Matrix4f camera_to_TCP = (Eigen::Matrix4f() <<
-  1, 0, 0, 0,
-  0, 1, 0, -0.05,
-  0, 0, 1, 0.01,
+  1, 0, 0, -0.045,
+  0, 1, 0, -0.06,
+  0, 0, 1, 0.02645,
   0, 0, 0, 1).finished();
 
-// The current position of the TCP from the base plate (world reference) is:
+// The offset for the end effector attachment and it's collision with different objects
+inline extern float spray_collision_offset = -55.0f;
+
+//create an enum called home_position
+enum class HomePosition {
+  ELEVATED = 1,
+  FRONT = 2
+};
+////////////////////////////   TCP ELEVATED (home reference)   /////////////////////////////////////////////////////////
+// The position of the TCP ELEVATED (home reference) from the base plate (world reference) is:
 // x = 305.78, y = 338.90, z = 73.94 mm
 // Rotational Vector (Rodrigues), Rotation x = 3.613 rad, Rotation y = -1.863 rad, Rotation z = 0.986 rad
-// Store this as an rvec and tvec
+// Store this as a rvec and tvec
 inline extern const Eigen::Vector3f base_to_TCP_rvec = Eigen::Vector3f(3.613, -1.863, 0.986);
 inline extern const Eigen::Vector3f base_to_TCP_tvec = Eigen::Vector3f(0.30578, 0.3389, 0.07394);
-
-// Camera rotation for home position. This is the rotation that needs to be applied each time we move the camera from home
-// The rotation needing to be applied around the x-axis is +22 degrees wrt the tool frame.
-inline extern float camera_rotation_home_position = 24.0f;
+// Camera rotation for TCP ELEVATED (home reference). This is the rotation that needs to be applied each time we move the camera from here
+// The rotation needs to be applied around the x-axis is +22 degrees wrt the tool (TCP) frame.
+inline extern float camera_rotation_home_position = 25.0f;
+// Object calibration destination from TCP ELEVATED is:
+// x = 0, y = 20, z = 360 mm
+// RX = camera_rotation_home_position,
+/////////////////////////////////   TCP FRONT (home reference)   ///////////////////////////////////////////////////////
+// The same values for the TCP FRONT (home reference) point from the base plate (world reference) are:
+// x = 260, y = 325, z = -90 mm
+// Rotational Vector (Rodrigues), Rotation x = 216.67 rad, Rotation y = -111.97 rad, Rotation z = 0.94.82 rad
+// Object calibration destination from TCP FRONT is:
+// x = 0, y = 10, z = 380 mm
 
 // Directory for reference models
 inline extern std::string model_directory = "../lab_data/spray_bottle_tall/"; // "../lab_data/";
@@ -304,6 +323,7 @@ inline void filterAndSegmentPointCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr
   pcl::PointCloud<pcl::PointXYZ>::Ptr& output_stream_cloud, const std::shared_ptr<std::vector<pcl::PointIndices>>& cluster_indices,
   const bool& debug, std::mutex& mtx, std::condition_variable& cv, bool& ready)
 {
+  initialise_filters();
   while (true) {
     auto frames = pipeline.wait_for_frames();
     const auto depth = frames.get_depth_frame();
@@ -313,8 +333,10 @@ inline void filterAndSegmentPointCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr
     std::vector<pcl::PointIndices> cluster_indices_local;
     filterAndSegmentPointCloud(cloud, filtered_cloud_clusters, cluster_indices_local, debug);
 
-    if (cluster_indices_local.empty() && debug) {
-      std::cout << "No clusters found." << std::endl;
+    if (cluster_indices_local.empty()) {
+      if (debug) {
+        std::cout << "No clusters found." << std::endl;
+      }
       continue;
     }
 
@@ -645,19 +667,38 @@ public:
     stored_pose = pose;
   }
 
-  void updatePose(const Eigen::Matrix4f& pose) {
-    const float distance = (stored_pose.block<3, 1>(0, 3) - pose.block<3, 1>(0, 3)).norm();
-    const float update_factor = calculateUpdateFactor(distance);
-
-    stored_pose = update_factor * pose + (1.0f - update_factor) * stored_pose;
-  }
-
   [[nodiscard]] Eigen::Matrix4f getPose() const {
     return stored_pose;
   }
 
+  void updatePose(const Eigen::Matrix4f& pose, const bool use_scaling_factor = false) {
+    if (use_scaling_factor)
+    {
+      const float distance = (stored_pose.block<3, 1>(0, 3) - pose.block<3, 1>(0, 3)).norm();
+      const float update_factor = calculateUpdateFactor(distance);
+      stored_pose = update_factor * pose + (1.0f - update_factor) * stored_pose;
+      return;
+    }
+    stored_pose = pose;
+  }
+
+  // get the pose calibration adjuster
+  [[nodiscard]] Eigen::Matrix4f getPoseCalibrationAdjuster() const {
+    return pose_calibration_adjuster;
+  }
+  // update the pose calibration adjuster
+  void updatePoseCalibrationAdjuster(const Eigen::Matrix4f& pose) {
+    pose_calibration_adjuster = pose;
+  }
+  void updatePoseCalibrationAdjusterXYZ(const float x = 0, const float y = 0, const float z = 0) {
+    pose_calibration_adjuster(0, 3) += x;
+    pose_calibration_adjuster(1, 3) += y;
+    pose_calibration_adjuster(2, 3) += z;
+  }
+
 private:
   Eigen::Matrix4f stored_pose;
+  Eigen::Matrix4f pose_calibration_adjuster = Eigen::Matrix4f::Identity();
 
   static float calculateUpdateFactor(const float distance) {
     if (distance < start_scale_distance) {
