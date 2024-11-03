@@ -15,12 +15,17 @@ int main() {
     rs2::pipeline pipeline;
     rs2::config cfg;
     cfg.enable_stream(RS2_STREAM_DEPTH, cam_res_width, cam_res_height, RS2_FORMAT_Z16, cam_fps);
+    cfg.enable_stream(RS2_STREAM_ACCEL, RS2_FORMAT_MOTION_XYZ32F);
     pipeline.start(cfg);
 
     // Camera warmup - dropping several first frames to let auto-exposure stabilize
     for (int i = 0; i < 60; i++) {
         auto frames = pipeline.wait_for_frames();
     }
+    // Only need to get accel data once
+    rs2::frameset frames = pipeline.wait_for_frames();
+    rs2::motion_frame accel_frame = frames.first_or_default(RS2_STREAM_ACCEL);
+    rs2_vector accel_data = accel_frame.get_motion_data();
 
     pcl::PointCloud<pcl::PointXYZ>::Ptr output_stream_cloud(new pcl::PointCloud<pcl::PointXYZ>);
     std::shared_ptr<std::vector<pcl::PointIndices>> cluster_indices(new std::vector<pcl::PointIndices>);
@@ -34,7 +39,6 @@ int main() {
         std::ref(cluster_indices), std::ref(debugging), std::ref(mtx), std::ref(condition_var), std::ref(ready));
 
     // Load the VFH model data and store the names of the models in the order they are in the index
-
     load_vfh_model_data(model_directory, models, model_files);
     // Convert the models to FLANN format
     std::unique_ptr<float[]> data_ptr(new float[models.size() * models[0].second.size()]);
@@ -79,35 +83,44 @@ int main() {
                 *best_cluster = *cloud_cluster;
             }
         }
-        // If a best match is found, continue to process the data
+        // If the best match is found, continue to process the data
         if (best_index != -1) {
             // Load the corresponding file from the model_directory
             const std::string& best_model_file = model_files[best_index];
             std::cout << "Best match found: " << best_model_file << std::endl;
             pcl::io::loadPCDFile(best_model_file, *best_cluster_pose_from_file);
 
-            // Rotate the stored pose to
-
-            // Transform the reference the camera frame to the robot frame (use camera_to_robot_frame)
-            pcl::PointCloud<pcl::PointXYZ>::Ptr object_wrt_robot(new pcl::PointCloud<pcl::PointXYZ>);
-            pcl::transformPointCloud(*best_cluster, *object_wrt_robot, camera_to_robot_frame);
+            // Transform the reference the camera frame to the robot end effector frame (TCP)
+            pcl::PointCloud<pcl::PointXYZ>::Ptr object_wrt_TCP(new pcl::PointCloud<pcl::PointXYZ>);
+            transformPointCloud(*best_cluster, *object_wrt_TCP, camera_to_TCP);
 
             // Trim the point cloud to get a band around the lower part of the object
             pcl::PointCloud<pcl::PointXYZ>::Ptr object_band(new pcl::PointCloud<pcl::PointXYZ>);
-            for (const auto& point : object_wrt_robot->points) {
-                if (point.y < 0.50 * object_wrt_robot->height && point.y > 0.00 * object_wrt_robot->height) {
-                    object_band->push_back(point);
+            for (const auto& point : object_wrt_TCP->points) {
+                object_band->push_back(point);
+                if (point.y < 1.0 * object_wrt_TCP->height && point.y > 0.00 * object_wrt_TCP->height) {
+                    //object_band->push_back(point);
                 }
             }
+            // output the count of points in the object band
+            std::cout << "Object band has " << object_band->size() << " points" << std::endl;
+
+
+
             // visualise the point cloud of the object band
             pcl::visualization::PCLVisualizer viewer("Object Band");
             viewer.addPointCloud<pcl::PointXYZ>(object_band, "object_band");
-            // add coordinate system
+            // add coordinate system, then set the camera position towards the centroid of the object
             viewer.addCoordinateSystem(0.1);
             viewer.spin();
-            // wait for the user to press a key
-            std::cout << "Press Enter to continue" << std::endl;
-            std::cin.get();
+            while(true) {
+                // wait for the user to press a key
+                std::cout << "Press Enter to continue" << std::endl;
+                // if user presses Enter, break out of the loop
+                if (std::cin.get() == '\n') {
+                    break;
+                }
+            }
 
             // Find the closest point to the robot
             Eigen::Matrix4f closest_point;
@@ -140,13 +153,8 @@ int main() {
             }
 
             // Prompt the user to move the robot to the closest point
-            std::cout << "In order to move the robot to the closest point, apply the following" << std::endl;
-            std::cout << "Rotation-x (w.r.t tool): ";
-            std::cout << camera_rotation_home_position << std::endl;
-            std::cout << "Once done, press Enter to continue" << std::endl;
-            // Wait for the user to press a key
-            std::cin.get();
-            std::cout << "Now set the following coordinates" << std::endl;
+            std::cout << "In order to move the robot (end effector TCP) to the closest point, apply the following" << std::endl;
+            std::cout << "All with respect to the TCP coordinates (select feature = TCP)" << std::endl;
             std::cout << "x: ";
             std::cout << std::fixed << std::setprecision(2) << adjusted_point(0) << std::endl;
             std::cout << "y: ";
@@ -154,6 +162,8 @@ int main() {
             std::cout << "z: ";
             std::cout << std::fixed << std::setprecision(2) << adjusted_point(2) << std::endl;
             // And rotation from the home position
+            std::cout << "Rotation-x: ";
+            std::cout << camera_rotation_home_position << std::endl;
             std::cout << "Once done, press Enter to continue" << std::endl;
             // Wait for the user to press a key
             std::cin.get();

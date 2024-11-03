@@ -113,7 +113,8 @@ void find_best_match()
   initialise_filters();
 
   // Load VFH model data
-  load_vfh_model_data(model_directory, models);
+  std::vector<std::string> model_files;
+  load_vfh_model_data(model_directory, models, model_files);
 
   // Convert models to FLANN format
   std::unique_ptr<float[]> data_ptr(new float[models.size() * models[0].second.size()]);
@@ -233,7 +234,6 @@ void moveArmForward(float x_change) {
 
   ros::shutdown();
 }*/
-
 
 int main() {
   //showPdcFile(2);

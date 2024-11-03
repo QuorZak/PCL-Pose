@@ -32,6 +32,7 @@
 #include <chrono>
 
 #include <opencv2/opencv.hpp>
+#include <opencv2/core/eigen.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 
 /*#include <ros/ros.h>
@@ -85,20 +86,21 @@ enum class PoseUpdateStabilityFactor {
 };
 inline extern PoseUpdateStabilityFactor stability_factor = PoseUpdateStabilityFactor::Resistant;
 
-// Define the transform to convert from camera frame to robot frame
+// Define the transform to convert from camera frame to robot end effector frame (TCP)
 // For now is manually set. The camera is -50mm y, +10mm z, 0 x from the robot frame
 // The rotation is the same as the robot frame
-inline extern Eigen::Matrix4f camera_to_robot_frame = (Eigen::Matrix4f() <<
+inline extern const Eigen::Matrix4f camera_to_TCP = (Eigen::Matrix4f() <<
   1, 0, 0, 0,
   0, 1, 0, -0.05,
   0, 0, 1, 0.01,
   0, 0, 0, 1).finished();
 
-inline extern Eigen::Matrix4f robot_to_camera_frame = (Eigen::Matrix4f() <<
-  1, 0, 0, 0,
-  0, 1, 0, +0.05,
-  0, 0, 1, -0.01,
-  0, 0, 0, 1).finished();
+// The current position of the TCP from the base plate (world reference) is:
+// x = 305.78, y = 338.90, z = 73.94 mm
+// Rotational Vector (Rodrigues), Rotation x = 3.613 rad, Rotation y = -1.863 rad, Rotation z = 0.986 rad
+// Store this as an rvec and tvec
+inline extern const Eigen::Vector3f base_to_TCP_rvec = Eigen::Vector3f(3.613, -1.863, 0.986);
+inline extern const Eigen::Vector3f base_to_TCP_tvec = Eigen::Vector3f(0.30578, 0.3389, 0.07394);
 
 // Camera rotation for home position. This is the rotation that needs to be applied each time we move the camera from home
 // The rotation needing to be applied around the x-axis is +22 degrees wrt the tool frame.
@@ -684,7 +686,7 @@ inline cv::Point2f projectPoint(const cv::Point3f& point, const rs2_intrinsics& 
   return {x_2d, y_2d};
 }
 
-// Function to estimate the pose of the object
+// Function to estimate the pose of the object.
 inline Eigen::Matrix4f estimatePose(const pcl::PointCloud<pcl::PointXYZ>::Ptr& scene_cloud,
   const pcl::PointCloud<pcl::PointXYZ>::Ptr& model_cloud) {
 
@@ -738,14 +740,14 @@ inline void displayCoordinateSystem(const Eigen::Matrix4f& pose, cv::Mat& frame,
 inline void getPointCloudOriginAndAxes(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud_cluster, Eigen::Matrix4f& pose,
   const float object_facing_angle, const float calibration_angle_offset, const rs2_vector& accel_data) {
 
-  /*// Compute the centroid of the point cloud
+  // Compute the centroid of the point cloud
   Eigen::Vector4f centroid;
   compute3DCentroid(*cloud_cluster, centroid);
 
   // Translate the point cloud to the origin (centroid)
   Eigen::Affine3f transform = Eigen::Affine3f::Identity();
   transform.translation() << -centroid[0], -centroid[1], -centroid[2];
-  transformPointCloud(*cloud_cluster, *cloud_cluster, transform);*/
+  transformPointCloud(*cloud_cluster, *cloud_cluster, transform);
 
   Eigen::Vector3f gravity_direction(accel_data.x, accel_data.y, accel_data.z);
   gravity_direction.normalize();
@@ -774,8 +776,8 @@ inline void getPointCloudOriginAndAxes(const pcl::PointCloud<pcl::PointXYZ>::Ptr
 // This function transforms the camera coordinate system to the global coordinate system
 // Is it currently the camera's position rectified (y pointing directly up, z is the same direction as/parallel to the front of the object)
 // The global coordinate system is defined as the camera's position when the program starts
-inline void setGlobalOriginAndAxes(Eigen::Matrix4f& pose, const float object_facing_angle,
-  const float calibration_angle_offset, const rs2_vector& accel_data) {
+inline void setGlobalOriginAndAxes(Eigen::Matrix4f& pose, const rs2_vector& accel_data,
+  const float object_facing_angle = 180, const float calibration_angle_offset = 0) {
 
   // Get the gravity direction from the accelerometer data
   Eigen::Vector3f gravity_direction(accel_data.x, accel_data.y, accel_data.z);

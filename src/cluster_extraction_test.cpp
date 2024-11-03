@@ -54,7 +54,7 @@ int main() {
   rs2_vector accel_data = accel_frame.get_motion_data();*/
 
   // Set the global origin and axes
-  //setGlobalOriginAndAxes(*global_rotation, object_facing_angle, calibration_angle_offset, accel_data);
+  //setGlobalOriginAndAxes(*global_rotation, accel_data, object_facing_angle, calibration_angle_offset);
 
   cloud = depthFrameToPointCloud(depth, true, true);
 
