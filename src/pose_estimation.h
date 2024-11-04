@@ -59,7 +59,7 @@ inline extern const int cam_res_height = 480; // Standard 480
 inline extern const int cam_fps = 15;
 
 // Parameters for cloud filtering
-inline extern const float leaf_size = 0.07f; // 0.01f default
+inline extern const float leaf_size = 0.01f; // 0.01f default
 inline extern const float cluster_tolerance = 0.015f; // 0.02 default
 inline extern const int min_cluster_size = 100; // 100 default
 inline extern const int max_cluster_size = 800; // 25000 default
@@ -67,7 +67,7 @@ inline extern const float segment_distance_threshold = 0.02f; // 0.02 default
 inline extern const float segment_probability = 0.99f; // try 0.99 ? Increase the probability to get a good sample
 inline extern const float segment_radius_min = 0.01f; // try 0.01 ? Set radius limits to avoid collinear points
 inline extern const float segment_radius_max = 0.1f; // try 0.1 ?
-inline extern const float filter_cluster_to_x_percent = 0.99f; // 0.4 default
+inline extern const float filter_cluster_to_x_percent = 0.90f; // 0.4 default
 
 // Parameters for Pose Estimation
 inline extern int icp_max_iterations = 50; // Maximum number of ICP iterations
@@ -270,7 +270,7 @@ inline void filterAndSegmentPointCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr
 
   // Create the filtering object
   pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_f(new pcl::PointCloud<pcl::PointXYZ>);
-  while (cloud_filtered->size () > filter_cluster_to_x_percent * nr_points) {
+  while (cloud_filtered->size () > nr_points * filter_cluster_to_x_percent) {
   // while (filter_count < 1) {
     // Segment the largest planar component from the remaining cloud
     seg.setInputCloud(cloud_filtered);
@@ -609,6 +609,170 @@ inline void nearestKSearch (const flann::Index<flann::ChiSquareDistance<float> >
   distances = flann::Matrix<float>(new float[k], 1, k);
   index.knnSearch (p, indices, distances, k, flann::SearchParams (512));
   delete[] p.ptr ();
+}
+
+// This function takes a point cloud and finds the nearest cluster match in the data set
+// Inputs: Point cloud, index of clusters in point cloud, K-d tree, desired candidate count (k)
+// Outputs: K-d tree indices of candidates, Distances of candidates from the query object
+inline void find_best_cloud_cluster_match_to_dataset(const pcl::PointCloud<pcl::PointXYZ>::Ptr &input_cloud,
+  const std::shared_ptr<std::vector<pcl::PointIndices>>& cluster_indices, const Index<ChiSquareDistance<float> > &index,
+  const int k_val, int &best_index, const pcl::PointCloud<pcl::PointXYZ>::Ptr &best_cluster,
+  const std::vector<std::string>& model_files, const pcl::PointCloud<pcl::PointXYZ>::Ptr& best_cluster_pose_from_file,
+  const bool debug = false) {
+
+  // Initialise the best cluster variables
+  float best_distance = std::numeric_limits<float>::max();
+
+  // Iterate through all the clusters and find the best match of a scene cluster to a stored model via VFH signatures
+  for (const auto& cluster : *cluster_indices) {
+    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cluster(new pcl::PointCloud<pcl::PointXYZ>);
+    for (const auto& idx : cluster.indices) {
+      cloud_cluster->push_back(input_cloud->points[idx]);
+    }
+    pcl::PointCloud<pcl::VFHSignature308> signature;
+    estimate_VFH(cloud_cluster, signature);
+    vfh_model query_model;
+    query_model.second.assign(signature.points[0].histogram, signature.points[0].histogram + 308);
+    Matrix<int> k_indices;
+    Matrix<float> k_distances;
+    nearestKSearch(index, query_model, k_val, k_indices, k_distances);
+    // Store the best match
+    for (int i = 0; i < k_val; ++i) {
+      if (k_distances[0][i] < best_distance) {
+        best_distance = k_distances[0][i];
+        best_index = k_indices[0][i];
+        *best_cluster = *cloud_cluster;
+      }
+    }
+    const std::string& best_model_file_name = model_files[best_index];
+    std::cout << "Best pose match found: " << best_model_file_name << std::endl;
+    pcl::io::loadPCDFile(best_model_file_name, *best_cluster_pose_from_file);
+  }
+}
+
+// This function extracts the closest point on the object that is closest to the robot end effector
+// There is some filtering and decision-making to ensure that the point is appropriate to grasp
+
+inline void extract_closest_point_on_object(const pcl::PointCloud<pcl::PointXYZ>::Ptr& best_cluster,
+  const std::shared_ptr<pcl::PointCloud<pcl::PointXYZ>>& closest_point_pcl, const bool debugging_movement_target,
+  const float object_band_height = 0.045) {
+
+    // Transform the reference the camera frame to the robot end effector frame (TCP)
+    const pcl::PointCloud<pcl::PointXYZ>::Ptr object_wrt_TCP(new pcl::PointCloud<pcl::PointXYZ>);
+    transformPointCloud(*best_cluster, *object_wrt_TCP, camera_to_TCP);
+
+    // Trim the point cloud to get a band around the lower part of the object
+    const pcl::PointCloud<pcl::PointXYZ>::Ptr object_band(new pcl::PointCloud<pcl::PointXYZ>);
+    // Get the middle of the object
+    float y_sum = 0;
+    for (const auto& point : object_wrt_TCP->points) {
+        y_sum += point.y;
+    }
+    float y_mean = y_sum / object_wrt_TCP->size();
+    // Get the points that are average or above the middle of the object (because y is flipped we want the bottom part)
+    // Also as we are iterating through the points, store the closest one (in the z direction) to the camera
+    float closest_distance = std::numeric_limits<float>::max();
+    for (const auto& point : object_wrt_TCP->points) {
+        if (point.y >= y_mean + 0.01f && point.y <= y_mean + object_band_height) {
+            if (point.z < closest_distance) {
+                closest_distance = point.z;
+                closest_point_pcl->clear();
+                closest_point_pcl->push_back(point);
+                object_band->push_back(point);
+            }
+        }
+    }
+    object_band->width = object_band->size();
+    object_band->height = 1;
+    object_band->is_dense = false;
+
+    if (debugging_movement_target)
+    {
+        // output the count of points in the object band
+        std::cout << "Object band has " << object_band->size() << " points" << std::endl;
+        // visualise the point cloud of the object band
+        pcl::visualization::PCLVisualizer viewer("Object Band");
+        viewer.addPointCloud<pcl::PointXYZ>(object_band, "object_band");
+        // add coordinate system, then set the camera position towards the centroid of the object
+        viewer.addCoordinateSystem(0.1);
+        viewer.spinOnce(10000);
+    }
+}
+
+// This function runs a thread where it processes the point cloud and finds the best match to the dataset
+// Inputs: Pipeline, output stream cloud, cluster indices, debug, mutex, condition variable, ready
+[[noreturn]] inline void process_point_cloud_and_find_best_match(const rs2::pipeline& pipeline,
+  const std::shared_ptr<std::vector<pcl::PointIndices>>& cluster_indices,
+  const std::shared_ptr<pcl::PointCloud<pcl::PointXYZ>>& closest_point_pcl,
+  std::string& best_model_file_name, const bool& debugging_cluster_filtering,
+  const bool& debugging_movement_target,
+  std::mutex& mtx, std::condition_variable& cv, bool& ready) {
+
+  // Load the VFH model data and store the names of the models in the order they are in the index
+  std::vector<vfh_model> models;
+  std::vector<std::string> model_files;
+  load_vfh_model_data(boost::filesystem::path(model_directory), models, model_files);
+  // Create the K-d tree
+  Matrix data (new float[models.size () * models[0].second.size()], models.size (), models[0].second.size());
+  for (size_t i = 0; i < data.rows; ++i)
+    for (size_t j = 0; j < data.cols; ++j)
+      data[i][j] = models[i].second[j];
+  // Build the FLANN index. This is the data structure that will be used to search for the best match
+  Index<ChiSquareDistance<float> > index (data, LinearIndexParams ());
+  index.buildIndex ();
+  std::cout << "VFH model data loaded and index built" << std::endl;
+
+  while (true) {
+    auto frames = pipeline.wait_for_frames();
+    const auto depth = frames.get_depth_frame();
+    rs2::depth_frame filtered_depth = apply_depth_post_processing_filters(depth);
+    auto cloud = depthFrameToPointCloud(filtered_depth, true, false);
+    pcl::PointCloud<pcl::PointXYZ>::Ptr filtered_cloud_clusters(new pcl::PointCloud<pcl::PointXYZ>);
+    std::vector<pcl::PointIndices> cluster_indices_local;
+    filterAndSegmentPointCloud(cloud, filtered_cloud_clusters, cluster_indices_local, debugging_cluster_filtering);
+
+    if (cluster_indices_local.empty()) {
+      if (debugging_movement_target) {
+        std::cout << "No clusters found." << std::endl;
+      }
+      continue;
+    }
+
+    int best_index = 0;
+    pcl::PointCloud<pcl::PointXYZ>::Ptr best_cluster_pose_from_file(new pcl::PointCloud<pcl::PointXYZ>);
+    pcl::PointCloud<pcl::PointXYZ>::Ptr best_cluster(new pcl::PointCloud<pcl::PointXYZ>);
+    find_best_cloud_cluster_match_to_dataset(filtered_cloud_clusters, cluster_indices, index, 6,
+      best_index, best_cluster, model_files, best_cluster_pose_from_file, debugging_movement_target);
+
+    // Store the current closest_point_pcl in a temporary variable
+    pcl::PointCloud<pcl::PointXYZ>::Ptr closest_point_temp(new pcl::PointCloud<pcl::PointXYZ>);
+    *closest_point_temp = *closest_point_pcl;
+    extract_closest_point_on_object(best_cluster, closest_point_pcl, debugging_movement_target);
+
+    // See if the closest point has changed. Do this by checking the x,y,z values of the points
+    bool closest_point_changed = false;
+    if (closest_point_temp->size() != closest_point_pcl->size()) {
+      closest_point_changed = true;
+    } else {
+      for (size_t i = 0; i < closest_point_temp->size(); ++i) {
+        if (closest_point_temp->points[i].x != closest_point_pcl->points[i].x ||
+            closest_point_temp->points[i].y != closest_point_pcl->points[i].y ||
+            closest_point_temp->points[i].z != closest_point_pcl->points[i].z) {
+          closest_point_changed = true;
+          break;
+        }
+      }
+    }
+    if (closest_point_changed)
+    {
+      {
+        std::lock_guard<std::mutex> lock(mtx);
+        best_model_file_name = model_files[best_index];
+        ready = true;
+      }
+      cv.notify_one();
+    }
+  }
 }
 
 // Function to show the point clouds with increased point size
