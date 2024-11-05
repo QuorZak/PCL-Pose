@@ -2,12 +2,16 @@
 
 int main() {
     // Initial variables
-    auto home_position = HomePosition::FRONT;
+    auto home_position = HomePosition::ANY;
     std::string input_name = "spray_bottle.pcd";
     std::string output_directory = "../pose_estimation_cluster";
     constexpr bool debugging_cluster_filtering = false;
-    constexpr bool debugging_movement_target = false;
-    const int k_val = 6;
+    constexpr bool debugging_target_acquire = false;
+    constexpr bool use_averaging = false; // not working correctly at the moment
+    constexpr bool do_calibration = false;
+    constexpr int k_val = 6;
+    constexpr int closest_point_averaging_buffer_size = 10;
+    Eigen::MatrixXf closest_point_buffer(3, closest_point_averaging_buffer_size);
 
     std::vector<vfh_model> models;
     std::vector<std::string> model_files; // Vector to store file names
@@ -17,18 +21,19 @@ int main() {
     // Start the Realsense pipeline
     rs2::pipeline pipeline;
     rs2::config cfg;
+    rs2_vector accel_data;
+    float rx_axis_rotation_degrees = 0.0f;
     cfg.enable_stream(RS2_STREAM_DEPTH, cam_res_width, cam_res_height, RS2_FORMAT_Z16, cam_fps);
-    //cfg.enable_stream(RS2_STREAM_ACCEL, RS2_FORMAT_MOTION_XYZ32F);
+    if (home_position == HomePosition::ELEVATED || home_position == HomePosition::ANY) {
+        cfg.enable_stream(RS2_STREAM_ACCEL, RS2_FORMAT_MOTION_XYZ32F);
+    }
+
     pipeline.start(cfg);
 
     // Camera warmup - dropping several first frames to let auto-exposure stabilize
     for (int i = 0; i < 60; i++) {
         auto frames = pipeline.wait_for_frames();
     }
-    // Only need to get accel data once
-    /*rs2::frameset frames = pipeline.wait_for_frames();
-    rs2::motion_frame accel_frame = frames.first_or_default(RS2_STREAM_ACCEL);
-    rs2_vector accel_data = accel_frame.get_motion_data();*/
 
     pcl::PointCloud<pcl::PointXYZ>::Ptr output_stream_cloud(new pcl::PointCloud<pcl::PointXYZ>);
     std::shared_ptr<std::vector<pcl::PointIndices>> cluster_indices(new std::vector<pcl::PointIndices>);
@@ -62,6 +67,14 @@ int main() {
             condition_var.wait(lock, [&ready] { return ready; });
             ready = false;
         }
+        if (home_position == HomePosition::ELEVATED || home_position == HomePosition::ANY)
+        {
+            // Get the current camera pose accel data
+            rs2::frameset frames = pipeline.wait_for_frames();
+            rs2::motion_frame accel_frame = frames.first_or_default(RS2_STREAM_ACCEL);
+            accel_data = accel_frame.get_motion_data();
+        }
+
         // Initialise the best cluster variables
         pcl::PointCloud<pcl::PointXYZ>::Ptr best_cluster(new pcl::PointCloud<pcl::PointXYZ>);
         pcl::PointCloud<pcl::PointXYZ>::Ptr best_cluster_pose_from_file(new pcl::PointCloud<pcl::PointXYZ>);
@@ -91,42 +104,84 @@ int main() {
             // Load the corresponding file from the model_directory
             const std::string& best_model_file = model_files[best_index];
             std::cout << "Best pose match found: " << best_model_file << std::endl;
-            pcl::io::loadPCDFile(best_model_file, *best_cluster_pose_from_file);
+            //pcl::io::loadPCDFile(best_model_file, *best_cluster_pose_from_file);
 
             // Transform the reference the camera frame to the robot end effector frame (TCP)
             pcl::PointCloud<pcl::PointXYZ>::Ptr object_wrt_TCP(new pcl::PointCloud<pcl::PointXYZ>);
             transformPointCloud(*best_cluster, *object_wrt_TCP, camera_to_TCP);
 
-            // Trim the point cloud to get a band around the lower part of the object
-            pcl::PointCloud<pcl::PointXYZ>::Ptr object_band(new pcl::PointCloud<pcl::PointXYZ>);
-            constexpr float object_band_height = 0.045;
-            // Get the middle of the object
-            float y_sum = 0;
-            for (const auto& point : object_wrt_TCP->points) {
-                y_sum += point.y;
+            // Manage the rotation of the camera frame to the robot end effector frame (TCP) (if any)
+            if (home_position == HomePosition::ELEVATED || home_position == HomePosition::ANY)
+            {
+                // Rotate the point cloud to align with gravity
+                pcl::PointCloud<pcl::PointXYZ>::Ptr object_wrt_TCP_aligned(new pcl::PointCloud<pcl::PointXYZ>);
+                std::unique_ptr<Eigen::Matrix4f> y_align_rotation(new Eigen::Matrix4f());
+                align_yaxis_with_gravity(object_wrt_TCP, *y_align_rotation, accel_data, rx_axis_rotation_degrees);
+                // Set the object_wrt_TCP to the aligned point cloud
+                // object_wrt_TCP = object_wrt_TCP_aligned;
             }
-            float y_mean = y_sum / object_wrt_TCP->size();
+
+            // Trim the point cloud to get a center target around the middle lower part of the object
+            pcl::PointCloud<pcl::PointXYZ>::Ptr object_band(new pcl::PointCloud<pcl::PointXYZ>);
+            // Get the middle (y) of the object
+            float y_min = std::numeric_limits<float>::max();
+            float y_max = std::numeric_limits<float>::min();
+            for (const auto& point : object_wrt_TCP->points) {
+                if (point.y < y_min) {
+                    y_min = point.y;
+                }
+                if (point.y > y_max) {
+                    y_max = point.y;
+                }
+            }
+            // Get the middle (x) of the object
+            float x_sum = 0;
+            float x_min = std::numeric_limits<float>::max();
+            float x_max = std::numeric_limits<float>::min();
+            for (const auto& point : object_wrt_TCP->points) {
+                x_sum += point.x;
+                if (point.x < x_min) {
+                    x_min = point.x;
+                }
+                if (point.x > x_max) {
+                    x_max = point.x;
+                }
+            }
+            float x_mean = x_sum / object_wrt_TCP->size();
+            const float object_height = (y_max - y_min);
+            const float object_width = (x_max - x_min);
+            // Y calculated this way for always targeting below halfway
+            const float object_height_center = y_min + (object_height / 2);
+            const float object_band_start = object_height_center + (object_height/2.0f * 0.20f);
+            const float object_band_stop = object_height_center + (object_height/2.0f * 0.80f);
+            const float object_band_width = object_width * 0.25f; // Can adjust the percentage here
+
             // Get the points that are average or above the middle of the object (because y is flipped we want the bottom part)
             // Also as we are iterating through the points, store the closest one (in the z direction) to the camera
+            // Trim any points that are on the sides of the object
             Eigen::Matrix4f closest_point;
             float closest_distance = std::numeric_limits<float>::max();
             for (const auto& point : object_wrt_TCP->points) {
-                if (point.y >= y_mean + 0.01f && point.y <= y_mean + object_band_height) {
-                    if (point.z < closest_distance) {
-                        closest_distance = point.z;
-                        closest_point(0) = point.x;
-                        closest_point(1) = point.y;
-                        closest_point(2) = point.z;
+                // only consider the center target area
+                if (point.y >= object_band_start && point.y <= object_band_stop) {
+                    if (point.x >= x_mean - object_band_width && point.x <= x_mean + object_band_width)
+                    {
                         object_band->push_back(point);
+                        if (point.z < closest_distance) {
+                            closest_distance = point.z;
+                            closest_point(0) = point.x;
+                            closest_point(1) = point.y;
+                            closest_point(2) = point.z;
+                        }
                     }
                 }
             }
-            object_band->width = object_band->size();
-            object_band->height = 1;
-            object_band->is_dense = false;
-
-            if (debugging_movement_target)
+            if (debugging_target_acquire)
             {
+                object_band->width = object_band->size();
+                object_band->height = 1;
+                object_band->is_dense = false;
+
                 // output the count of points in the object band
                 std::cout << "Object band has " << object_band->size() << " points" << std::endl;
                 // visualise the point cloud of the object band
@@ -144,6 +199,29 @@ int main() {
                     }
                 }
             }
+            if (use_averaging)
+            {
+                // Get a series of samples of the closest point to the camera before progressing
+                // Add the point to the buffer, then check if the count is reached
+                closest_point_buffer.block<3, closest_point_averaging_buffer_size - 1>(0, 0) = closest_point_buffer.block<3, closest_point_averaging_buffer_size - 1>(0, 1);
+                Eigen::Vector3f buffer_input;
+                buffer_input(0) = closest_point(0);
+                buffer_input(1) = closest_point(1);
+                buffer_input(2) = closest_point(2);
+                closest_point_buffer.block<3, 1>(0, closest_point_averaging_buffer_size - 1) = buffer_input;
+                // If the count is reached, then average the points, clear the buffer and continue
+                if (closest_point_buffer.cols() == closest_point_averaging_buffer_size) {
+                    Eigen::Vector3f average_closest_point = closest_point_buffer.rowwise().mean();
+                    closest_point(0) = average_closest_point(0);
+                    closest_point(1) = average_closest_point(1);
+                    closest_point(2) = average_closest_point(2);
+                    closest_point_buffer.setZero();
+                    std::cout << "Closest point averaged" << std::endl;
+                } else
+                {
+                    continue;
+                }
+            }
 
             Eigen::Matrix4f adjusted_point = closest_point;
             // Set the adjusted pose to a human-readable format (mm)
@@ -152,6 +230,10 @@ int main() {
             adjusted_point(2) *= 1000;
             // Apply the pose manager's calibration adjustments to the adjusted point
             adjusted_point = adjusted_point * pose_manager.getPoseCalibrationAdjuster();
+            std::cout << "Closest point detected at: " << std::endl;
+            std::cout << "x: " << adjusted_point(0) << " mm" << std::endl;
+            std::cout << "y: " << adjusted_point(1) << " mm" << std::endl;
+            std::cout << "z: " << adjusted_point(2) << " mm" << std::endl;
             if (input_name == "spray_bottle.pcd")
             {
                 adjusted_point(2) += spray_collision_offset; // Offset Z for the collision distance between the bottle and the manipulator
@@ -163,40 +245,45 @@ int main() {
             std::cout << "x: ";
             std::cout << std::fixed << std::setprecision(2) << adjusted_point(0) << std::endl;
             std::cout << "y: ";
-            std::cout << std::fixed << std::setprecision(2) << -adjusted_point(1) << std::endl; // Flipped y-axis
+            std::cout << std::fixed << std::setprecision(2) << adjusted_point(1) << std::endl;
             std::cout << "z: ";
             std::cout << std::fixed << std::setprecision(2) << adjusted_point(2) << std::endl;
-            if (home_position == HomePosition::ELEVATED) {
+            if (home_position == HomePosition::ELEVATED || home_position == HomePosition::ANY
+                && rx_axis_rotation_degrees >= 1.0f) {
                 // If the home position is elevated, then the rotation needs to be applied
                 std::cout << "RX (Rotation Vector degrees): ";
-                std::cout << camera_rotation_home_position << std::endl;
+                std::cout << std::fixed << std::setprecision(1) << rx_axis_rotation_degrees << std::endl;
+                //std::cout << camera_rotation_home_position << std::endl;
             }
             std::cout << "Once done, press Enter to continue" << std::endl;
             // Wait for the user to press a key
             std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 
-            // At this stage there would be touch sensors to give feedback if the robot has touched the object
-            // In this circumstance, the update is manual
-            std::cout << "Measure the error between the estimated pose and the actual pose." << std::endl;
-            std::cout << "Record it as 'how much more the robot should move in the x,y,z direction' to be correct" << std::endl;
-            std::cout << "Once done, press Enter to continue" << std::endl;
-            // Wait for the user to press a key
-            std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-            // Prompt user to return the robot to the original position
-            std::cout << "Please reset the robot to the home position, then press Enter" << std::endl;
-            std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-            // Prompt user to input the error in the x, y, z direction
-            float x_error, y_error, z_error;
-            std::cout << "Enter the error in the x direction (mm) eg. ' 2.1 ': ";
-            std::cin >> x_error;
-            std::cout << "Enter the error in the y direction (mm) eg. ' 1.2 ': ";
-            std::cin >> y_error;
-            std::cout << "Enter the error in the z direction (mm) eg. ' 1.1 ': ";
-            std::cin >> z_error;
-            // Update the pose manager with the error
-            pose_manager.updatePoseCalibrationAdjusterXYZ(x_error / 1000, -y_error / 1000, z_error / 1000);
-            // Output the new pose calibration adjuster
-            std::cout << "The new pose calibration adjuster is: " << std::endl;
+            if (do_calibration)
+            {
+                // At this stage there would be touch sensors to give feedback if the robot has touched the object
+                // In this circumstance, the update is manual
+                std::cout << "Measure the error between the estimated pose and the actual pose." << std::endl;
+                std::cout << "Record it as 'how much more the robot should move in the x,y,z direction' to be correct" << std::endl;
+                std::cout << "Once done, press Enter to continue" << std::endl;
+                // Wait for the user to press a key
+                std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+                // Prompt user to return the robot to the original position
+                std::cout << "Please reset the robot to the home position, then press Enter" << std::endl;
+                std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+                // Prompt user to input the error in the x, y, z direction
+                float x_error, y_error, z_error;
+                std::cout << "Enter the error in the x direction (mm) eg. ' 2.0 ': ";
+                std::cin >> x_error;
+                std::cout << "Enter the error in the y direction (mm) eg. ' 1.2 ': ";
+                std::cin >> y_error;
+                std::cout << "Enter the error in the z direction (mm) eg. ' 1.1 ': ";
+                std::cin >> z_error;
+                // Update the pose manager with the error
+                pose_manager.updatePoseCalibrationAdjusterXYZ(x_error / 1000, y_error / 1000, z_error / 1000);
+                // Output the new pose calibration adjuster
+                std::cout << "The new pose calibration adjuster is: " << std::endl;
+            }
         }
     }
     processing_thread.join();

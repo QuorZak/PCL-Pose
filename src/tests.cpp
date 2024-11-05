@@ -238,12 +238,12 @@ void moveArmForward(float x_change) {
 int main() {
   //showPdcFile(2);
 
-  //streamDepthMap();
+  streamDepthMap();
 
   // 1258020693333_cluster_1_nxyz.pcd
   // 1258020693333_cluster_0_nxyz.pcd
   //const auto files = globFiles("../lab_data/test/*.pcd");
-  showPointClouds({"../lab_data/test/spray_bottle_tall_0016.pcd"}, true);
+  //showPointClouds({"../lab_data/test/spray_bottle_tall_0016.pcd"}, true);
   //find_best_match();
 
   /*ros::init(argc, argv, "move_arm_forward_test");

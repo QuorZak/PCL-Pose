@@ -48,9 +48,9 @@
 typedef std::pair<std::string, std::vector<float> > vfh_model;
 
 // Declare global variables that all functions in the .cpp files can access
-inline extern const int image_reduced_to_percentage = 60;
-inline extern const float depth_filter_min_distance = 0.3f;
-inline extern const float depth_filter_max_distance = 0.6f;
+inline extern const int image_reduced_to_percentage = 80;
+inline extern const float depth_filter_min_distance = 0.25f;
+inline extern const float depth_filter_max_distance = 0.7f;
 
 // Global camera config params
 // 848x480 resolution, 15 frames per second is optimal for Realsense D455
@@ -59,10 +59,10 @@ inline extern const int cam_res_height = 480; // Standard 480
 inline extern const int cam_fps = 15;
 
 // Parameters for cloud filtering
-inline extern const float leaf_size = 0.07f; // 0.01f default
-inline extern const float cluster_tolerance = 0.015f; // 0.02 default
-inline extern const int min_cluster_size = 100; // 100 default
-inline extern const int max_cluster_size = 800; // 25000 default
+inline extern const float leaf_size = 0.004f; // 0.01f default
+inline extern const float cluster_tolerance = 0.010f; // 0.02 default
+inline extern const int min_cluster_size = 500; // 100 default
+inline extern const int max_cluster_size = 25000; // 25000 default
 inline extern const float segment_distance_threshold = 0.02f; // 0.02 default
 inline extern const float segment_probability = 0.99f; // try 0.99 ? Increase the probability to get a good sample
 inline extern const float segment_radius_min = 0.01f; // try 0.01 ? Set radius limits to avoid collinear points
@@ -87,23 +87,24 @@ enum class PoseUpdateStabilityFactor {
 inline extern PoseUpdateStabilityFactor stability_factor = PoseUpdateStabilityFactor::Resistant;
 
 // Define the transform to convert from camera frame to robot end effector frame (TCP)
-// For now is manually set. The front, middle surface of the camera is 0 x, -60mm y, +31mm z, from the robot frame
-// The ground truth adjustment for the depth reading regarding Intel D455 is -4.55mm z from the front surface
-// The calibration of the camera means that it is aligned to the left lens. To get the center shift 45mm
+// For now was manually set. The front, middle surface of the camera is 0 x, -60mm y, +31mm z, from the robot frame
+// The calibration of the camera means that it is aligned to the left lens. To get the center shift 47.5mm (cam baseline is 95mm)
 // The rotation is the same as the robot frame
 inline extern const Eigen::Matrix4f camera_to_TCP = (Eigen::Matrix4f() <<
-  1, 0, 0, -0.045,
+  1, 0, 0, -0.0475,
   0, 1, 0, -0.06,
-  0, 0, 1, 0.02645,
+  0, 0, 1, 0.031,
   0, 0, 0, 1).finished();
+// Some documentation alludes to the ground truth adjustment for the depth reading regarding Intel D455 being -4.55mm z from the front surface
 
 // The offset for the end effector attachment and it's collision with different objects
-inline extern float spray_collision_offset = -55.0f;
+inline extern float spray_collision_offset = -57.0f;
 
 //create an enum called home_position
 enum class HomePosition {
   ELEVATED = 1,
-  FRONT = 2
+  FRONT = 2,
+  ANY = 3
 };
 ////////////////////////////   TCP ELEVATED (home reference)   /////////////////////////////////////////////////////////
 // The position of the TCP ELEVATED (home reference) from the base plate (world reference) is:
@@ -842,4 +843,33 @@ inline void setGlobalOriginAndAxes(Eigen::Matrix4f& pose, const rs2_vector& acce
 
   // The x-axis can be set to the cross product of the y-axis and z-axis
   pose.block<3, 1>(0, 0) = pose.block<3, 1>(0, 1).cross(pose.block<3, 1>(0, 2));
+}
+
+// Get the angle that makes the y-axis line up with the object
+inline void align_yaxis_with_gravity(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud_cluster,
+  Eigen::Matrix4f& y_align_rotation, const rs2_vector& accel_data, float& angle,
+  const bool& apply_rotation = false) {
+
+  Eigen::Vector3f gravity_direction(accel_data.x, accel_data.y, accel_data.z);
+  gravity_direction.normalize();
+
+  // Calculate the angle between the y-axis and the gravity direction
+  const Eigen::Vector3f y_axis = -Eigen::Vector3f::UnitY();
+  angle = acos(y_axis.dot(gravity_direction));
+  // determine if the ange change is positive or negative
+  if (y_axis.cross(gravity_direction).dot(Eigen::Vector3f::UnitX()) < 0) {
+    angle = -angle;
+  }
+
+  // Subtract the angle from the gravity direction
+  const auto rotation_quart = Eigen::Quaternionf(Eigen::AngleAxisf(-angle, y_axis.cross(gravity_direction).normalized()));
+  y_align_rotation.block<3, 3>(0, 0) = rotation_quart.toRotationMatrix();
+
+  // Apply the of the resulting transformation to the point cloud to make it align with the world y-axis (gravity)
+  if (apply_rotation) {
+    transformPointCloud(*cloud_cluster, *cloud_cluster, y_align_rotation);
+  }
+
+  // make sure the angle comes out in degrees
+  angle = 180.0f * angle / M_PI;
 }
