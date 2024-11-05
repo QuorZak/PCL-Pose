@@ -1,7 +1,5 @@
 #include <marker_pose_estimation.h>
 
-
-
 // function to start up camera rgb, find specifically the marker generated in generate marker, and display it
 void findMarkerAndPose() {
   using namespace cv;

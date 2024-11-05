@@ -37,7 +37,9 @@ int main(int argc, char** argv) {
 
     std::thread processing_thread(processPointCloud, std::ref(pipeline), std::ref(output_stream_cloud), std::ref(cluster_indices), std::ref(mtx), std::ref(condition_var), std::ref(ready));
 
-    load_vfh_model_data(model_directory, models);
+    // Load the VFH model data and store the names of the models in the order they are in the index
+    std::vector<std::string> model_files;
+    load_vfh_model_data(model_directory, models, model_files);
 
     std::unique_ptr<float[]> data_ptr(new float[models.size() * models[0].second.size()]);
     Matrix data(data_ptr.get(), models.size(), models[0].second.size());

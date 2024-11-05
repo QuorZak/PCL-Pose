@@ -243,7 +243,7 @@ int main() {
   // 1258020693333_cluster_1_nxyz.pcd
   // 1258020693333_cluster_0_nxyz.pcd
   //const auto files = globFiles("../lab_data/test/*.pcd");
-  showPointClouds({"../lab_data/test/spray_bottle_tall_0021.pcd"}, true);
+  showPointClouds({"../lab_data/test/spray_bottle_tall_0010.pcd"}, true);
   //find_best_match();
 
   /*ros::init(argc, argv, "move_arm_forward_test");

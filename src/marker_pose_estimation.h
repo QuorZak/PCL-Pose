@@ -1,11 +1,13 @@
 #pragma once
 #include <librealsense2/rs.hpp>
+#include <opencv2/objdetect/aruco_detector.hpp>
 
 #include <Eigen/Dense>
 #include <opencv2/core/eigen.hpp>
 #include <opencv2/opencv.hpp>
 
-
+// Parameters for controlling the logical flow of the program
+inline extern bool estimatePose = true;
 
 // Parameters for Pose Manager
 inline extern float start_scale_distance = 0.01f; // Start distance for scaling in m

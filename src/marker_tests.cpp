@@ -1,7 +1,6 @@
-#include <pose_estimation.h>
+#include <marker_pose_estimation.h>
 #include <cstdlib>
 #include <thread>
-#include <opencv2/objdetect/aruco_detector.hpp>
 
 // Generate and save openCv aruco markers
 void generateMarker() {
@@ -32,21 +31,21 @@ auto color_stream = profile.get_stream(RS2_STREAM_COLOR).as<rs2::video_stream_pr
 rs2_intrinsics intrinsics = color_stream.get_intrinsics();
 
 // Camera matrix and distortion coefficients
-cv::Mat camMatrix = (cv::Mat_<double>(3, 3) << intrinsics.fx, 0, intrinsics.ppx, 0, intrinsics.fy, intrinsics.ppy, 0, 0, 1);
-cv::Mat distCoeffs = (cv::Mat_<double>(5, 1) << intrinsics.coeffs[0], intrinsics.coeffs[1], intrinsics.coeffs[2], intrinsics.coeffs[3], intrinsics.coeffs[4]);
+Mat camMatrix = (cv::Mat_<double>(3, 3) << intrinsics.fx, 0, intrinsics.ppx, 0, intrinsics.fy, intrinsics.ppy, 0, 0, 1);
+Mat distCoeffs = (cv::Mat_<double>(5, 1) << intrinsics.coeffs[0], intrinsics.coeffs[1], intrinsics.coeffs[2], intrinsics.coeffs[3], intrinsics.coeffs[4]);
 
-  // set coordinate system
-  float markerLength = 0.1f;
-  cv::Mat objPoints(4, 1, CV_32FC3);
-  objPoints.ptr<Vec3f>(0)[0] = Vec3f(-markerLength/2.f, markerLength/2.f, 0);
-  objPoints.ptr<Vec3f>(0)[1] = Vec3f(markerLength/2.f, markerLength/2.f, 0);
-  objPoints.ptr<Vec3f>(0)[2] = Vec3f(markerLength/2.f, -markerLength/2.f, 0);
-  objPoints.ptr<Vec3f>(0)[3] = Vec3f(-markerLength/2.f, -markerLength/2.f, 0);
+// set coordinate system
+float markerLength = 0.1f;
+Mat objPoints(4, 1, CV_32FC3);
+objPoints.ptr<Vec3f>(0)[0] = Vec3f(-markerLength/2.f, markerLength/2.f, 0);
+objPoints.ptr<Vec3f>(0)[1] = Vec3f(markerLength/2.f, markerLength/2.f, 0);
+objPoints.ptr<Vec3f>(0)[2] = Vec3f(markerLength/2.f, -markerLength/2.f, 0);
+objPoints.ptr<Vec3f>(0)[3] = Vec3f(-markerLength/2.f, -markerLength/2.f, 0);
 
-  // Create the detector
-  cv::aruco::DetectorParameters detectorParams = cv::aruco::DetectorParameters();
-  cv::aruco::Dictionary dictionary = aruco::getPredefinedDictionary(aruco_dict_number);
-  cv::aruco::ArucoDetector detector(dictionary, detectorParams);
+// Create the detector
+auto detectorParams = aruco::DetectorParameters();
+aruco::Dictionary dictionary = aruco::getPredefinedDictionary(aruco_dict_number);
+aruco::ArucoDetector detector(dictionary, detectorParams);
 
 while (true) {
   // Get the frames
@@ -54,11 +53,11 @@ while (true) {
   auto color_frame = frames.get_color_frame();
 
   // Convert the frame to an OpenCV image
-  cv::Mat frame(cv::Size(cam_res_width, cam_res_height), CV_8UC3, const_cast<void*>(color_frame.get_data()), cv::Mat::AUTO_STEP);
+  Mat frame(Size(cam_res_width, cam_res_height), CV_8UC3, const_cast<void*>(color_frame.get_data()), Mat::AUTO_STEP);
 
   // Detect the marker
   std::vector<int> markerIds;
-  std::vector<std::vector<cv::Point2f>> markerCorners, rejectedCandidates;
+  std::vector<std::vector<Point2f>> markerCorners, rejectedCandidates;
   detector.detectMarkers(frame, markerCorners, markerIds, rejectedCandidates);
 
   size_t nMarkers = markerCorners.size();
@@ -79,16 +78,16 @@ while (true) {
 
   // If the marker is detected, draw the marker
   if (!markerIds.empty()) {
-    cv::aruco::drawDetectedMarkers(frame, markerCorners, markerIds);
+    aruco::drawDetectedMarkers(frame, markerCorners, markerIds);
     for(unsigned int i = 0; i < markerIds.size(); i++)
-      cv::drawFrameAxes(frame, camMatrix, distCoeffs, rvecs[i], tvecs[i], markerLength * 1.5f, 2);
+      drawFrameAxes(frame, camMatrix, distCoeffs, rvecs[i], tvecs[i], markerLength * 1.5f, 2);
   }
 
   // Display the frame
-  cv::imshow("Frame", frame);
+  imshow("Frame", frame);
 
   // If the user presses a key
-  if (cv::waitKey(1) >= 0) {
+  if (waitKey(1) >= 0) {
     break;
   }
 }
@@ -103,7 +102,7 @@ void findObjectPose(const std::vector<cv::Point3d>& objectPoints,
                     cv::Vec3d& rvec,
                     cv::Vec3d& tvec) {
   // Use solvePnP to find the rotation and translation vectors
-  bool success = cv::solvePnP(objectPoints, imagePoints, cameraMatrix, distCoeffs, rvec, tvec, false, cv::SOLVEPNP_ITERATIVE);
+  bool success = solvePnP(objectPoints, imagePoints, cameraMatrix, distCoeffs, rvec, tvec, false, cv::SOLVEPNP_ITERATIVE);
 
   if (success) {
     std::cout << "Rotation Vector: " << rvec << std::endl;
