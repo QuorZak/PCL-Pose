@@ -152,8 +152,8 @@ int main() {
             const float object_width = (x_max - x_min);
             // Y calculated this way for always targeting below halfway
             const float object_height_center = y_min + (object_height / 2);
-            const float object_band_start = object_height_center + (object_height/2.0f * 0.20f);
-            const float object_band_stop = object_height_center + (object_height/2.0f * 0.80f);
+            const float object_band_start = object_height_center + (object_height/2.0f * 0.30f);
+            const float object_band_stop = object_height_center + (object_height/2.0f * 0.70f);
             const float object_band_width = object_width * 0.25f; // Can adjust the percentage here
 
             // Get the points that are average or above the middle of the object (because y is flipped we want the bottom part)
