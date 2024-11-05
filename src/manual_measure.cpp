@@ -35,7 +35,7 @@ int main() {
         auto frames = pipeline.wait_for_frames();
     }
 
-    pcl::PointCloud<pcl::PointXYZ>::Ptr output_stream_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+    std::shared_ptr<pcl::PointCloud<pcl::PointXYZ>> output_stream_cloud(new pcl::PointCloud<pcl::PointXYZ>);
     std::shared_ptr<std::vector<pcl::PointIndices>> cluster_indices(new std::vector<pcl::PointIndices>);
     std::mutex mtx;
     std::condition_variable condition_var;
@@ -199,7 +199,11 @@ int main() {
                     }
                 }
             }
-            if (use_averaging)
+            if (object_band->empty() || closest_distance == std::numeric_limits<float>::max()) {
+                std::cout << "No points in the object band" << std::endl;
+                continue;
+            }
+            if (use_averaging) // Isn't working at time of comment
             {
                 // Get a series of samples of the closest point to the camera before progressing
                 // Add the point to the buffer, then check if the count is reached

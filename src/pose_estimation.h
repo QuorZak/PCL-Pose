@@ -321,7 +321,7 @@ inline void filterAndSegmentPointCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr
 
 
 [[noreturn]] inline void processPointCloud(const rs2::pipeline& pipeline,
-  pcl::PointCloud<pcl::PointXYZ>::Ptr& output_stream_cloud, const std::shared_ptr<std::vector<pcl::PointIndices>>& cluster_indices,
+  std::shared_ptr<pcl::PointCloud<pcl::PointXYZ>>& output_stream_cloud, const std::shared_ptr<std::vector<pcl::PointIndices>>& cluster_indices,
   const bool& debug, std::mutex& mtx, std::condition_variable& cv, bool& ready)
 {
   initialise_filters();
@@ -343,7 +343,7 @@ inline void filterAndSegmentPointCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr
 
     {
       std::lock_guard<std::mutex> lock(mtx);
-      output_stream_cloud = filtered_cloud_clusters;
+      *output_stream_cloud = *filtered_cloud_clusters;
       *cluster_indices = cluster_indices_local;
       ready = true;
     }
