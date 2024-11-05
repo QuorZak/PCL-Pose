@@ -59,8 +59,8 @@ inline extern const int cam_res_height = 480; // Standard 480
 inline extern const int cam_fps = 15;
 
 // Parameters for cloud filtering
-inline extern const float leaf_size = 0.001f; // 0.01f default
-inline extern const float cluster_tolerance = 0.008f; // 0.02 default
+inline extern const float leaf_size = 0.004f; // 0.01f default
+inline extern const float cluster_tolerance = 0.010f; // 0.02 default
 inline extern const int min_cluster_size = 500; // 100 default
 inline extern const int max_cluster_size = 25000; // 25000 default
 inline extern const float segment_distance_threshold = 0.02f; // 0.02 default

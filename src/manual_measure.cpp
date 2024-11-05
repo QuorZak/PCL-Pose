@@ -60,11 +60,17 @@ int main() {
 
     PoseManager pose_manager;
 
+    // Get copy from the shared pointers
+    pcl::PointCloud<pcl::PointXYZ>::Ptr output_stream_cloud_local(new pcl::PointCloud<pcl::PointXYZ>);
+    std::vector<pcl::PointIndices> cluster_indices_local;
+
     while (true) {
         {
             // Wait for the processing thread to produce a new point cloud cluster
             std::unique_lock<std::mutex> lock(mtx);
             condition_var.wait(lock, [&ready] { return ready; });
+            *output_stream_cloud_local = *output_stream_cloud;
+            cluster_indices_local = *cluster_indices;
             ready = false;
         }
         if (home_position == HomePosition::ELEVATED || home_position == HomePosition::ANY)
@@ -82,10 +88,10 @@ int main() {
         int best_index = -1;
 
         // Iterate through all the clusters and find the best match of a scene cluster to a stored model via VFH signatures
-        for (const auto& cluster : *cluster_indices) {
+        for (const auto& cluster : cluster_indices_local) {
             pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cluster(new pcl::PointCloud<pcl::PointXYZ>);
             for (const auto& idx : cluster.indices) {
-                cloud_cluster->push_back(output_stream_cloud->points[idx]);
+                cloud_cluster->push_back(output_stream_cloud_local->points[idx]);
             }
             pcl::PointCloud<pcl::VFHSignature308> signature;
             estimate_VFH(cloud_cluster, signature);
@@ -290,6 +296,7 @@ int main() {
             }
         }
     }
+    // Stop the processing tread and the Realsense pipeline
     processing_thread.join();
     pipeline.stop();
     return 0;
