@@ -19,7 +19,7 @@ void findMarkerAndPose() {
   Mat distCoeffs = (cv::Mat_<double>(5, 1) << intrinsics.coeffs[0], intrinsics.coeffs[1], intrinsics.coeffs[2], intrinsics.coeffs[3], intrinsics.coeffs[4]);
 
   // set coordinate system
-  float markerLength = 0.1f;
+  // markerLength is defined in marker_pose_estimation.h
   Mat objPoints(4, 1, CV_32FC3);
   objPoints.ptr<Vec3f>(0)[0] = Vec3f(-markerLength/2.f, markerLength/2.f, 0);
   objPoints.ptr<Vec3f>(0)[1] = Vec3f(markerLength/2.f, markerLength/2.f, 0);
