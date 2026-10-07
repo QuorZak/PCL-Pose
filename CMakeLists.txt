@@ -30,9 +30,9 @@ include_directories(src)
 add_executable(pose src/pose_estimation.h src/main.cpp)
 target_link_libraries(pose ${PCL_LIBRARIES} realsense2 ${OpenCV_LIBS} ${FLANN_LIBRARIES} ${HDF5_LIBRARIES} ${Boost_LIBRARIES})
 
-# Tests executable
-add_executable(tests src/pose_estimation.h src/tests.cpp)
-target_link_libraries(tests ${PCL_LIBRARIES} realsense2 ${OpenCV_LIBS} ${FLANN_LIBRARIES} ${HDF5_LIBRARIES} ${Boost_LIBRARIES})
+# Scratch tools executable (a playground for trying out the functions, not an automated test suite)
+add_executable(scratch_tools src/pose_estimation.h src/scratch_tools.cpp)
+target_link_libraries(scratch_tools ${PCL_LIBRARIES} realsense2 ${OpenCV_LIBS} ${FLANN_LIBRARIES} ${HDF5_LIBRARIES} ${Boost_LIBRARIES})
 
 # Cluster Extraction executable (interactive capture, labels the object's facing angle)
 add_executable(extraction src/pose_estimation.h src/cluster_extraction.cpp)

@@ -4,7 +4,6 @@ int main() {
     // Initial variables
     auto home_position = HomePosition::ANY;
     std::string input_name = "spray_bottle.pcd";
-    std::string output_directory = "../pose_estimation_cluster";
     constexpr bool debugging_cluster_filtering = false;
     constexpr bool debugging_target_acquire = false;
     constexpr bool use_averaging = false; // not working correctly at the moment
@@ -83,7 +82,6 @@ int main() {
 
         // Initialise the best cluster variables
         pcl::PointCloud<pcl::PointXYZ>::Ptr best_cluster(new pcl::PointCloud<pcl::PointXYZ>);
-        pcl::PointCloud<pcl::PointXYZ>::Ptr best_cluster_pose_from_file(new pcl::PointCloud<pcl::PointXYZ>);
         float best_distance = std::numeric_limits<float>::max();
         int best_index = -1;
 
@@ -110,21 +108,18 @@ int main() {
             // Load the corresponding file from the model_directory
             const std::string& best_model_file = model_files[best_index];
             std::cout << "Best pose match found: " << best_model_file << std::endl;
-            //pcl::io::loadPCDFile(best_model_file, *best_cluster_pose_from_file);
 
             // Transform the reference the camera frame to the robot end effector frame (TCP)
             pcl::PointCloud<pcl::PointXYZ>::Ptr object_wrt_TCP(new pcl::PointCloud<pcl::PointXYZ>);
             transformPointCloud(*best_cluster, *object_wrt_TCP, camera_to_TCP);
 
-            // Manage the rotation of the camera frame to the robot end effector frame (TCP) (if any)
+            // The camera is tilted, so work out the tilt (RX) from gravity using the camera's accelerometer.
+            // The point cloud itself is left in the TCP frame: the operator is told to apply this RX rotation to the
+            // tool (see the printout below), rather than the cloud being rotated.
             if (home_position == HomePosition::ELEVATED || home_position == HomePosition::ANY)
             {
-                // Rotate the point cloud to align with gravity
-                pcl::PointCloud<pcl::PointXYZ>::Ptr object_wrt_TCP_aligned(new pcl::PointCloud<pcl::PointXYZ>);
-                std::unique_ptr<Eigen::Matrix4f> y_align_rotation(new Eigen::Matrix4f());
-                align_yaxis_with_gravity(object_wrt_TCP, *y_align_rotation, accel_data, rx_axis_rotation_degrees);
-                // Set the object_wrt_TCP to the aligned point cloud
-                // object_wrt_TCP = object_wrt_TCP_aligned;
+                Eigen::Matrix4f y_align_rotation = Eigen::Matrix4f::Identity();
+                align_yaxis_with_gravity(object_wrt_TCP, y_align_rotation, accel_data, rx_axis_rotation_degrees);
             }
 
             // Trim the point cloud to get a center target around the middle lower part of the object
@@ -263,7 +258,6 @@ int main() {
                 // If the home position is elevated, then the rotation needs to be applied
                 std::cout << "RX (Rotation Vector degrees): ";
                 std::cout << std::fixed << std::setprecision(1) << rx_axis_rotation_degrees << std::endl;
-                //std::cout << camera_rotation_home_position << std::endl;
             }
             std::cout << "Once done, press Enter to continue" << std::endl;
             // Wait for the user to press a key

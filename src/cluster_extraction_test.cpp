@@ -11,8 +11,6 @@ int main() {
   const std::string test_name = "spray_bottle_tall";
   const std::string output_folder = "../lab_data/test/";
   //const std::string output_folder = "../lab_data/" + test_name + "/";
-  const float object_facing_angle = 315.0f; // Change this each capture
-  const float calibration_angle_offset = -40.0f; // Set this if your camera is not quite aligned
 
   // Get the highest file number
   int file_num = 0;
@@ -28,13 +26,11 @@ int main() {
   file_num += 1;
 
   // Declare any variables
-  std::unique_ptr<Eigen::Matrix4f> global_rotation(new Eigen::Matrix4f());
   pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
 
   rs2::pipeline pipe;
   rs2::config config;
   config.enable_stream(RS2_STREAM_DEPTH, cam_res_width, cam_res_height, RS2_FORMAT_Z16, cam_fps); // Use global parameters
-  //config.enable_stream(RS2_STREAM_ACCEL, RS2_FORMAT_MOTION_XYZ32F);
   pipe.start(config);
 
   // Initialise the filters which will be applied to the depth frame
@@ -49,17 +45,8 @@ int main() {
   rs2::frame depth = frames.get_depth_frame();
   depth = apply_depth_post_processing_filters(depth);
 
-  /*// Get the camera orientation data
-  rs2::motion_frame accel_frame = frames.first_or_default(RS2_STREAM_ACCEL);
-  rs2_vector accel_data = accel_frame.get_motion_data();*/
-
-  // Set the global origin and axes
-  //setGlobalOriginAndAxes(*global_rotation, accel_data, object_facing_angle, calibration_angle_offset);
-
+  // The clouds saved by this program are left as seen by the camera (no re-orientation or centring)
   cloud = depthFrameToPointCloud(depth, true, true);
-
-  // apply the global rotation to the point cloud
-  //transformPointCloud(*cloud, *cloud, *global_rotation);
 
   pipe.stop();
 
@@ -83,8 +70,6 @@ int main() {
 
   // Save the point clouds
   pcl::PCDWriter writer;
-  std::string output_file;
-  int j = 0;
   for (const auto& cluster : cluster_indices) {
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cluster(new pcl::PointCloud<pcl::PointXYZ>);
     for (const auto& idx : cluster.indices) {
@@ -94,13 +79,9 @@ int main() {
     cloud_cluster->height = 1;
     cloud_cluster->is_dense = true;
 
-    // Transform the point cloud using the new pose
-    //transformPointCloud(*cloud_cluster, *cloud_cluster, *object_pose);
-
     std::cout << "PointCloud representing the Cluster: " << cloud_cluster->size() << " data points." << std::endl;
     std::stringstream ss;
     ss << std::setw(4) << std::setfill('0') << file_num++;
-    output_file = output_folder + test_name + "_" + ss.str() + ".pcd";
     writer.write<pcl::PointXYZ>(output_folder + test_name + "_" + ss.str() + ".pcd", *cloud_cluster, false);
 
     // Get the VFH signature of the cluster then save
@@ -108,15 +89,11 @@ int main() {
     estimate_VFH(cloud_cluster, signature);
     std::string vfh_filename = output_folder + test_name + "_" + ss.str() + "_vfh.pcd";
     pcl::io::savePCDFile(vfh_filename, signature);
-
-    j++;
   }
 
   const std::string files_to_show_pattern = output_folder + test_name + "_*.pcd";
   std::vector<std::string> files_to_show = globFiles(files_to_show_pattern);
   showPointClouds(files_to_show);
-
-  //showPointClouds({output_file});
 
   return 0;
 }

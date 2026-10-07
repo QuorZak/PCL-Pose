@@ -35,15 +35,6 @@
 #include <opencv2/core/eigen.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 
-/*#include <ros/ros.h>
-#include <moveit/move_group_interface/move_group_interface.h>
-#include <moveit/planning_scene_interface/planning_scene_interface.h>
-#include <moveit_msgs/DisplayRobotState.h>
-#include <moveit_msgs/DisplayTrajectory.h>
-#include <moveit_msgs/AttachedCollisionObject.h>
-#include <moveit_msgs/CollisionObject.h>
-#include <geometry_msgs/PoseStamped.h>*/
-
 // Define vfh_model type for storing data file name and histogram data
 typedef std::pair<std::string, std::vector<float> > vfh_model;
 
@@ -110,15 +101,12 @@ enum class HomePosition {
 // The position of the TCP ELEVATED (home reference) from the base plate (world reference) is:
 // x = 305.78, y = 338.90, z = 73.94 mm
 // Rotational Vector (Rodrigues), Rotation x = 3.613 rad, Rotation y = -1.863 rad, Rotation z = 0.986 rad
-// Store this as a rvec and tvec
-inline extern const Eigen::Vector3f base_to_TCP_rvec = Eigen::Vector3f(3.613, -1.863, 0.986);
-inline extern const Eigen::Vector3f base_to_TCP_tvec = Eigen::Vector3f(0.30578, 0.3389, 0.07394);
-// Camera rotation for TCP ELEVATED (home reference). This is the rotation that needs to be applied each time we move the camera from here
-// The rotation needs to be applied around the x-axis is +22 degrees wrt the tool (TCP) frame.
-inline extern float camera_rotation_home_position = 25.0f;
+// Camera rotation for TCP ELEVATED (home reference): the rotation (RX) that needs to be applied around the x-axis of the
+// tool (TCP) frame each time the camera is moved from here. It is calculated at run time from the camera's accelerometer
+// (see align_yaxis_with_gravity).
 // Object calibration destination from TCP ELEVATED is:
 // x = 0, y = 20, z = 360 mm
-// RX = camera_rotation_home_position,
+// RX = the rotation calculated from the accelerometer,
 /////////////////////////////////   TCP FRONT (home reference)   ///////////////////////////////////////////////////////
 // The same values for the TCP FRONT (home reference) point from the base plate (world reference) are:
 // x = 260, y = 325, z = -90 mm
@@ -366,35 +354,6 @@ inline void estimate_VFH(const pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud, pcl::
   vfh.compute (signature);
 }
 
-// This function checks if the file already contains a VFH signature
-// Input: File path
-// Output: true if file contains VFH signature, false if file does not contain VFH signature
-inline bool checkVFH(const boost::filesystem::path &path)
-{
-    try
-  {
-    // Read point cloud header
-    pcl::PCLPointCloud2 cloud;
-    int version;
-    Eigen::Vector4f origin;
-    Eigen::Quaternionf orientation;
-    pcl::PCDReader r;
-    int type; unsigned int idx;
-    r.readHeader (path.string (), cloud, origin, orientation, version, type, idx);
-
- // Check if there is VFH field in the cloud header
-    if (const int vfh_idx = pcl::getFieldIndex(cloud, "vfh"); vfh_idx == -1)
-      return (false);
-    if (static_cast<int>(cloud.width) * cloud.height != 1)
-      return (false);
-  }
-  catch (const pcl::InvalidConversionException&)
-  {
-    return (false);
-  }
-  return (true);
-}
-
 // This function loads VFH signature histogram into a vfh model
 // Input: File path to histogram
 // Output: A boolean that returns true if the histogram is loaded successfully and a vfh_model data that holds the histogram information
@@ -482,109 +441,6 @@ inline void load_vfh_model_data(const boost::filesystem::path &base_dir, std::ve
       pcl::console::print_highlight("%s\n", ss.str().c_str());
     }
   }
-}
-
-// A small helper to replace a deprecated Boost Function
-inline void replace_last(std::string& str, const std::string& from, const std::string& to) {
-    std::size_t pos = str.rfind(from);
-    if (pos != std::string::npos) {
-        str.replace(pos, from.length(), to);
-    }
-}
-
-// This function visualizes given k point cloud arguments on a PCL_Viewer
-// It shows distances of candidates from the query object at the left bottom corner of each window
-// If the distance is smaller than a given threshold then the distances are shown in green, else they are shown in red
-// Inputs: Main function arguments, candidate count (k), threshold value, vfh_model vector that contains VFH signatures
-// from the data set, indices of candidates and distances of candidates
-inline void visualise(int argc, char** argv, int k, double thresh, std::vector<vfh_model> models, flann::Matrix<int> k_indices, flann::Matrix<float> k_distances)
-{
-  // Load the results
-  pcl::visualization::PCLVisualizer p (argc, argv, "VFH Cluster Classifier");
-  int y_s = static_cast<int>(floor(sqrt(static_cast<double>(k))));
-  int x_s = y_s + static_cast<int>(ceil((k / static_cast<double>(y_s)) - y_s));
-  auto x_step = 1 / static_cast<double>(x_s);
-  auto y_step = 1 / static_cast<double>(y_s);
-  pcl::console::print_highlight ("Preparing to load ");
-  pcl::console::print_value ("%d", k);
-  pcl::console::print_info (" files (");
-  pcl::console::print_value ("%d", x_s);
-  pcl::console::print_info ("x");
-  pcl::console::print_value ("%d", y_s);
-  pcl::console::print_info (" / ");
-  pcl::console::print_value ("%f", x_step);
-  pcl::console::print_info ("x");
-  pcl::console::print_value ("%f", y_step);
-  pcl::console::print_info (")\n");
-
-  int viewport = 0, l = 0, m = 0;
-  for (int i = 0; i < k; ++i)
-  {
-    std::string cloud_name = models.at (k_indices[0][i]).first;
-    replace_last (cloud_name, "_vfh", "");
-
-    p.createViewPort (l * x_step, m * y_step, (l + 1) * x_step, (m + 1) * y_step, viewport);
-    l++;
-    if (l >= x_s)
-    {
-      l = 0;
-      m++;
-    }
-
-    pcl::PCLPointCloud2 cloud;
-    pcl::console::print_highlight (stderr, "Loading "); pcl::console::print_value (stderr, "%s ", cloud_name.c_str ());
-    if (pcl::io::loadPCDFile (cloud_name, cloud) == -1)
-      break;
-
-    // Convert from blob to PointCloud
-    pcl::PointCloud<pcl::PointXYZ> cloud_xyz;
-    pcl::fromPCLPointCloud2 (cloud, cloud_xyz);
-
-    if (cloud_xyz.points.empty())
-      break;
-
-    pcl::console::print_info ("[done, ");
-    pcl::console::print_value ("%d", static_cast<int>(cloud_xyz.points.size()));
-    pcl::console::print_info (" points]\n");
-    pcl::console::print_info ("Available dimensions: ");
-    pcl::console::print_value ("%s\n", pcl::getFieldsList (cloud).c_str ());
-
-    // Demean the cloud
-    Eigen::Vector4f centroid;
-    pcl::compute3DCentroid (cloud_xyz, centroid);
-    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_xyz_demean (new pcl::PointCloud<pcl::PointXYZ>);
-    pcl::demeanPointCloud<pcl::PointXYZ> (cloud_xyz, centroid, *cloud_xyz_demean);
-    // Add to renderer*
-    p.addPointCloud (cloud_xyz_demean, cloud_name, viewport);
-
-    // Check if the model found is within our inlier tolerance
-    std::stringstream ss;
-    ss << k_distances[0][i];
-    if (k_distances[0][i] > thresh)
-    {
-      p.addText (ss.str (), 20, 30, 1, 0, 0, ss.str (), viewport);  // display the text with red
-
-      // Create a red line
-      pcl::PointXYZ min_p, max_p;
-      pcl::getMinMax3D (*cloud_xyz_demean, min_p, max_p);
-      std::stringstream line_name;
-      line_name << "line_" << i;
-      p.addLine (min_p, max_p, 1, 0, 0, line_name.str (), viewport);
-      p.setShapeRenderingProperties (pcl::visualization::PCL_VISUALIZER_LINE_WIDTH, 5, line_name.str (), viewport);
-    }
-    else
-      p.addText (ss.str (), 20, 30, 0, 1, 0, ss.str (), viewport);
-
-    // Increase the font size for the score*
-    p.setShapeRenderingProperties (pcl::visualization::PCL_VISUALIZER_FONT_SIZE, 18, ss.str (), viewport);
-
-    // Add the cluster name
-    p.addText (cloud_name, 20, 10, cloud_name, viewport);
-  }
-  // Add coordinate systems to all viewports
-  p.addCoordinateSystem (0.1, "global", 0);
-
-  p.spin ();
 }
 
 // This function finds the k nearest neighbors of the query object and returns their indices in the K-d tree and distances from the query object
@@ -768,8 +624,7 @@ inline void displayCoordinateSystem(const Eigen::Matrix4f& pose, cv::Mat& frame,
 // This function takes a point cloud and sets the origin to the center of the point cloud
 // It also sets the axes to the principal axes of the point cloud, currently y = up, z = forward/front of the object
 // 0 degrees is defined as directly facing the camera
-
-// DEPRECATED: This function is not used anymore - it was replaced by setGlobalOriginAndAxes
+// Used by cluster_extraction.cpp to place each library cloud in its own coordinate system.
 inline void getPointCloudOriginAndAxes(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud_cluster, Eigen::Matrix4f& pose,
   const float object_facing_angle, const float calibration_angle_offset, const rs2_vector& accel_data) {
 
@@ -798,36 +653,6 @@ inline void getPointCloudOriginAndAxes(const pcl::PointCloud<pcl::PointXYZ>::Ptr
 
   // TODO: Figure out this object rotation a bit better and more efficiently
   // Now that the y direction is set, we can rotate the object to align with zero degrees
-  Eigen::Matrix3f object_rotation; // Some - and + values to get 0 to be approximately directly away from the camera
-  object_rotation = Eigen::AngleAxisf(M_PI * (object_facing_angle+calibration_angle_offset) / 180.0f, Eigen::Vector3f::UnitY());
-  pose.block<3, 3>(0, 0) = object_rotation * pose.block<3, 3>(0, 0);
-
-  // The x-axis can be set to the cross product of the y-axis and z-axis
-  pose.block<3, 1>(0, 0) = pose.block<3, 1>(0, 1).cross(pose.block<3, 1>(0, 2));
-}
-
-// This function transforms the camera coordinate system to the global coordinate system
-// Is it currently the camera's position rectified (y pointing directly up, z is the same direction as/parallel to the front of the object)
-// The global coordinate system is defined as the camera's position when the program starts
-inline void setGlobalOriginAndAxes(Eigen::Matrix4f& pose, const rs2_vector& accel_data,
-  const float object_facing_angle = 180, const float calibration_angle_offset = 0) {
-
-  // Get the gravity direction from the accelerometer data
-  Eigen::Vector3f gravity_direction(accel_data.x, accel_data.y, accel_data.z);
-  gravity_direction.normalize();
-
-  // Calculate the angle between the y-axis and the gravity direction
-  const Eigen::Vector3f y_axis = Eigen::Vector3f::UnitY();
-  const float angle = acos(y_axis.dot(gravity_direction));
-
-  // Subtract the angle from the gravity direction
-  const auto rotation_quart = Eigen::Quaternionf(Eigen::AngleAxisf(-angle, y_axis.cross(gravity_direction).normalized()));
-  pose.block<3, 3>(0, 0)  = -rotation_quart.toRotationMatrix();
-
-  /*// Apply the opposite of the resulting transformation to the point cloud (to point away from gravity)
-  pose.block<3, 3>(0, 0) = -y_align_rotation;*/
-
-  // Now that the y direction is set, we can rotate the coordinate to align with the 'forward' direction
   Eigen::Matrix3f object_rotation; // Some - and + values to get 0 to be approximately directly away from the camera
   object_rotation = Eigen::AngleAxisf(M_PI * (object_facing_angle+calibration_angle_offset) / 180.0f, Eigen::Vector3f::UnitY());
   pose.block<3, 3>(0, 0) = object_rotation * pose.block<3, 3>(0, 0);

@@ -207,34 +207,6 @@ void find_best_match()
   pipe.stop();
 }
 
-/*// Move the arm forward by x cm
-void moveArmForward(float x_change) {
-  ros::NodeHandle node_handle;
-  ros::AsyncSpinner spinner(1);
-  spinner.start();
-
-  moveit::planning_interface::MoveGroupInterface move_group("manipulator");
-  moveit::planning_interface::PlanningSceneInterface planning_scene_interface;
-
-  geometry_msgs::PoseStamped current_pose = move_group.getCurrentPose();
-  geometry_msgs::Pose target_pose = current_pose.pose;
-  target_pose.position.x += x_change; // Move forward by x cm
-
-  move_group.setPoseTarget(target_pose);
-
-  moveit::planning_interface::MoveGroupInterface::Plan my_plan;
-  bool success = (move_group.plan(my_plan) == moveit::planning_interface::MoveItErrorCode::SUCCESS);
-
-  if (success) {
-    move_group.move();
-    ROS_INFO("Move successful");
-  } else {
-    ROS_WARN("Move failed");
-  }
-
-  ros::shutdown();
-}*/
-
 int main() {
   //showPdcFile(2);
 
@@ -245,9 +217,6 @@ int main() {
   //const auto files = globFiles("../lab_data/test/*.pcd");
   showPointClouds({"../lab_data/test/spray_bottle_tall_0010.pcd"}, true);
   //find_best_match();
-
-  /*ros::init(argc, argv, "move_arm_forward_test");
-  moveArmForward(0.02f);*/
 
   return 0;
 }

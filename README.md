@@ -37,7 +37,7 @@ In the `src` folder you can find the following files:
 - `manual_measure.cpp` (`manual_measure`) - This file measures the objects in the scene, finds the object that is most similar to the known library of point clouds and calculates the parameters for a robot arm to grasp the object.
 - `cluster_extraction.cpp` (`extraction`) - Interactive tool for building the library. You enter the angle the object is facing, it captures until it finds exactly one cluster, places the coordinate system at the centre of the object, aligns it with gravity using the camera's accelerometer, and saves the cloud and its VFH into `lab_data/<object>/`. You review the result and keep or discard it.
 - `cluster_extraction_test.cpp` (`extraction_test`) - Takes a single capture and saves every cluster it finds, with its VFH, into `lab_data/test/`. The clouds are saved as seen by the camera (no re-orientation), so move the ones you want into the library folder by hand, and keep in mind that they are not centred like the ones saved by `extraction`.
-- `tests.cpp` (`tests`) - A scratch file for trying out the functions in `pose_estimation.h` (viewing saved clouds, streaming the depth map, matching a capture against the library). It is not an automated test suite.
+- `scratch_tools.cpp` (`scratch_tools`) - A scratch file for trying out the functions in `pose_estimation.h` (viewing saved clouds, streaming the depth map, matching a capture against the library). It is not an automated test suite.
 - `main_marker.cpp` (`marker`) and `marker_pose_estimation.h` - Detect ArUco markers in the colour stream and print their pose. Useful for testing the pose, camera calibration, and distances.
 - `generate_markers.cpp` (`generate_markers`) - Writes the ArUco marker images into `f_markers/`.
 
