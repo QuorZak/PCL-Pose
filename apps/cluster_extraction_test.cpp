@@ -55,13 +55,15 @@ int main() {
   std::vector<pcl::PointIndices> cluster_indices;
   filterAndSegmentPointCloud(cloud, cloud_filtered, cluster_indices, true);
 
-  // Clear out all the files in the output folder
-  const std::string clear_command = "rm -f " + output_folder + test_name + "_*.pcd";
-  if (const int result = std::system(clear_command.c_str()); result != 0) {
-    std::cerr << "Failed to execute rm command" << std::endl;
-  } else {
-    std::cout << "Cleared out all the files in the output folder" << std::endl;
+  // Clear out the previous captures of this object from the output folder
+  for (const auto& old_file : listPcdFiles(output_folder, test_name + "_")) {
+    std::error_code error;
+    std::filesystem::remove(old_file, error);
+    if (error) {
+      std::cerr << "Failed to remove " << old_file << ": " << error.message() << std::endl;
+    }
   }
+  std::cout << "Cleared out the previous captures from the output folder" << std::endl;
 
   if (cluster_indices.empty()) {
     std::cout << "No clusters found." << std::endl;
@@ -91,9 +93,8 @@ int main() {
     pcl::io::savePCDFile(vfh_filename, signature);
   }
 
-  const std::string files_to_show_pattern = output_folder + test_name + "_*.pcd";
-  std::vector<std::string> files_to_show = globFiles(files_to_show_pattern);
-  showPointClouds(files_to_show);
+  // Show the clouds that were just saved (the _vfh files belong to the same clouds, so skip them)
+  showPointClouds(listPcdFiles(output_folder, test_name + "_"), true);
 
   return 0;
 }
