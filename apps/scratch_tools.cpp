@@ -1,4 +1,6 @@
 #include <pose_estimation.h>
+
+using namespace pcl_pose;
 #include <cstdlib>
 #include <thread>
 #include <pcl/io/pcd_io.h>
@@ -100,8 +102,8 @@ void find_best_match()
   std::vector<vfh_model> models;
 
   // Other required variables
-  Matrix<int> k_indices;
-  Matrix<float> k_distances;
+  flann::Matrix<int> k_indices;
+  flann::Matrix<float> k_distances;
 
   // Initialize the RealSense pipeline
   rs2::pipeline pipe;
@@ -118,13 +120,13 @@ void find_best_match()
 
   // Convert models to FLANN format
   std::unique_ptr<float[]> data_ptr(new float[models.size() * models[0].second.size()]);
-  Matrix data(data_ptr.get(), models.size(), models[0].second.size());
+  flann::Matrix data(data_ptr.get(), models.size(), models[0].second.size());
   for (size_t i = 0; i < data.rows; ++i)
     for (size_t j = 0; j < data.cols; ++j)
       data[i][j] = models[i].second[j];
 
   // Build the FLANN index
-  Index<ChiSquareDistance<float>> index(data, LinearIndexParams());
+  flann::Index<flann::ChiSquareDistance<float>> index(data, flann::LinearIndexParams());
   index.buildIndex();
 
   // Camera warmup - dropping several first frames to let auto-exposure stabilize
@@ -187,7 +189,7 @@ void find_best_match()
     std::string best_match_name = models[best_index].first.substr(0, models[best_index].first.find("_vfh.pcd")) + ".pcd";
     pcl::io::loadPCDFile(best_match_name, *best_match_cloud);
 
-    cout << "Best match name: " << best_match_name << std::endl;
+    std::cout << "Best match name: " << best_match_name << std::endl;
 
     // Visualize both point clouds
     pcl::visualization::PCLVisualizer::Ptr viewer(new pcl::visualization::PCLVisualizer("3D Viewer"));

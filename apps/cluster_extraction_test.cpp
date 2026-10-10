@@ -7,6 +7,8 @@
 
 #include <pose_estimation.h>
 
+using namespace pcl_pose;
+
 int main() {
   const std::string test_name = "spray_bottle_tall";
   const std::string output_folder = "../lab_data/test/";

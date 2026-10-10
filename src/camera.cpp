@@ -4,6 +4,8 @@
 #include <iostream>
 #include <stdexcept>
 
+namespace pcl_pose {
+
 namespace {
 // Post-processing filters for the depth frame
 // Threshold filter, Temporal filter, Hole filling filter
@@ -91,3 +93,5 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr depthFrameToPointCloud(const rs2::depth_fram
   }
   return cloud;
 }
+
+}  // namespace pcl_pose

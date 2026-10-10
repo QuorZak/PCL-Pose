@@ -10,6 +10,8 @@
 #include <pcl/point_types.h>
 #include <pcl/visualization/pcl_visualizer.h>
 
+namespace pcl_pose {
+
 void showPointClouds(const std::vector<std::string>& created_files, const bool ignore_vfh) {
   const pcl::visualization::PCLVisualizer::Ptr viewer(new pcl::visualization::PCLVisualizer("3D Viewer"));
   viewer->setBackgroundColor(0, 0, 0);
@@ -43,3 +45,5 @@ void showPointClouds(const std::vector<std::string>& created_files, const bool i
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
 }
+
+}  // namespace pcl_pose

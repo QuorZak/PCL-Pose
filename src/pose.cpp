@@ -8,6 +8,8 @@
 #include <pcl/common/transforms.h>
 #include <pcl/registration/icp.h>
 
+namespace pcl_pose {
+
 cv::Point3f transformPoint(const Eigen::Matrix4f& pose, const cv::Point3f& point) {
   const Eigen::Vector4f point_homogeneous(point.x, point.y, point.z, 1.0);
   Eigen::Vector4f point_transformed = pose * point_homogeneous;
@@ -127,3 +129,5 @@ void align_yaxis_with_gravity(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud_c
   // make sure the angle comes out in degrees
   angle = 180.0f * angle / M_PI;
 }
+
+}  // namespace pcl_pose

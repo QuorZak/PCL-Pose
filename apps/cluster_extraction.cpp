@@ -8,6 +8,8 @@
 
 #include <pose_estimation.h>
 
+using namespace pcl_pose;
+
 int main () {
   const std::string object_name = "spray_bottle_tall";
   const std::string output_folder = "../lab_data/" + object_name + "/";

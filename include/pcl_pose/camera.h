@@ -6,6 +6,8 @@
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 
+namespace pcl_pose {
+
 // This function takes the width and height of a depth image and returns the x and y start and stop points for cropping
 // The start and stop points are the absolute vales of the start position and stop position of the crop
 // E.g. start_x = 150, stop_x = 450, start_y = 100, stop_y = 350 for a 640x480 image
@@ -24,3 +26,5 @@ rs2::depth_frame apply_depth_post_processing_filters(rs2::depth_frame depth);
 // The crop is centered around the center of the image
 pcl::PointCloud<pcl::PointXYZ>::Ptr depthFrameToPointCloud(const rs2::depth_frame& depth, bool crop = false,
   bool debugging = false);
+
+}  // namespace pcl_pose

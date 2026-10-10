@@ -4,6 +4,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 project(pose)
 
+# PCL and Eigen are very slow without optimisation, so build in Release unless told otherwise
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+  set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+endif()
+
 # PCL
 find_package(PCL 1.8 REQUIRED)
 include_directories(${PCL_INCLUDE_DIRS})

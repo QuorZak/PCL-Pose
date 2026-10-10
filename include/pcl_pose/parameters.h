@@ -3,6 +3,8 @@
 
 #include <Eigen/Dense>
 
+namespace pcl_pose {
+
 // Declare global variables that all functions in the library and the programs can access
 inline const int image_reduced_to_percentage = 80;
 inline const float depth_filter_min_distance = 0.25f;
@@ -87,3 +89,5 @@ inline float depth_filter_smooth_alpha = 0.25f; // Smoothing factor 0.25
 inline float depth_filter_smooth_delta = 60; // Delta value 60
 inline float depth_filter_temporal_holes_fill = 6.0f; // Persistency index (highest = 8) [0-8]
 inline float depth_filter_holes_fill = 2.0f;// 2 = fill from the farthest pixel
+
+}  // namespace pcl_pose

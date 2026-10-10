@@ -20,10 +20,10 @@ The approach is PCL's cluster recognition with VFH (viewpoint feature histogram)
 ## Building
 ```bash
 mkdir build && cd build
-cmake -DCMAKE_BUILD_TYPE=Release ..
+cmake ..
 make -j$(nproc)
 ```
-Run the programs from inside the `build` folder, because the default data paths are relative (`../lab_data/...`). A Release build matters: PCL and Eigen are very slow without optimisation.
+Run the programs from inside the `build` folder, because the default data paths are relative (`../lab_data/...`). The build type defaults to Release, because PCL and Eigen are very slow without optimisation.
 
 ## Repository contents
 - `include/` and `src/` - The pose library (`pose_core`), shared by the programs, described below.

@@ -11,6 +11,8 @@
 #include <pcl/io/pcd_io.h>
 #include <pcl/search/kdtree.h>
 
+namespace pcl_pose {
+
 void estimate_VFH(const pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud, pcl::PointCloud <pcl::VFHSignature308> &signature)
 {
   const pcl::PointCloud<pcl::Normal>::Ptr normals (new pcl::PointCloud<pcl::Normal> ());
@@ -127,3 +129,5 @@ void nearestKSearch(const flann::Index<flann::ChiSquareDistance<float> > &index,
   index.knnSearch (p, indices, distances, k, flann::SearchParams (512));
   delete[] p.ptr ();
 }
+
+}  // namespace pcl_pose

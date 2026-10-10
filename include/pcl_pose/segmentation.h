@@ -10,6 +10,8 @@
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 
+namespace pcl_pose {
+
 // This is the Cluster Extraction code that is common to both the test and the main code
 // It down-samples the cloud, removes the planes (floor, table) and extracts the clusters from what is left
 void filterAndSegmentPointCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud,
@@ -23,3 +25,5 @@ void filterAndSegmentPointCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud
   std::shared_ptr<pcl::PointCloud<pcl::PointXYZ>>& output_stream_cloud,
   const std::shared_ptr<std::vector<pcl::PointIndices>>& cluster_indices,
   const bool& debug, std::mutex& mtx, std::condition_variable& cv, bool& ready);
+
+}  // namespace pcl_pose

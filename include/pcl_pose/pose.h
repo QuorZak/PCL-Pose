@@ -10,6 +10,8 @@
 
 #include "pcl_pose/parameters.h"
 
+namespace pcl_pose {
+
 // Keeps the current estimate of the pose, and a calibration adjuster that is set by measuring the error of the
 // robot's position
 class PoseManager {
@@ -91,3 +93,5 @@ void getPointCloudOriginAndAxes(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud
 void align_yaxis_with_gravity(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud_cluster,
   Eigen::Matrix4f& y_align_rotation, const rs2_vector& accel_data, float& angle,
   const bool& apply_rotation = false);
+
+}  // namespace pcl_pose

@@ -12,6 +12,8 @@
 #include <flann/flann.h>
 #include <flann/io/hdf5.h>
 
+namespace pcl_pose {
+
 // Define vfh_model type for storing data file name and histogram data
 typedef std::pair<std::string, std::vector<float> > vfh_model;
 
@@ -37,3 +39,5 @@ void load_vfh_model_data(const std::filesystem::path &base_dir, std::vector<vfh_
 // Outputs: K-d tree indices of candidates, Distances of candidates from the query object
 void nearestKSearch(const flann::Index<flann::ChiSquareDistance<float> > &index, const vfh_model &model,
   int k, flann::Matrix<int> &indices, flann::Matrix<float> &distances);
+
+}  // namespace pcl_pose

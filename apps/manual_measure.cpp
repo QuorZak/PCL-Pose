@@ -1,5 +1,7 @@
 #include <pose_estimation.h>
 
+using namespace pcl_pose;
+
 int main() {
     // Initial variables
     auto home_position = HomePosition::ANY;
@@ -14,8 +16,8 @@ int main() {
 
     std::vector<vfh_model> models;
     std::vector<std::string> model_files; // Vector to store file names
-    Matrix<int> k_indices;
-    Matrix<float> k_distances;
+    flann::Matrix<int> k_indices;
+    flann::Matrix<float> k_distances;
 
     // Start the Realsense pipeline
     rs2::pipeline pipeline;
@@ -48,12 +50,12 @@ int main() {
     load_vfh_model_data(model_directory, models, model_files);
     // Convert the models to FLANN format
     std::unique_ptr<float[]> data_ptr(new float[models.size() * models[0].second.size()]);
-    Matrix data(data_ptr.get(), models.size(), models[0].second.size());
+    flann::Matrix data(data_ptr.get(), models.size(), models[0].second.size());
     for (size_t i = 0; i < data.rows; ++i)
         for (size_t j = 0; j < data.cols; ++j)
             data[i][j] = models[i].second[j];
     // Build the FLANN index. This is the data structure that will be used to search for the best match
-    Index<ChiSquareDistance<float>> index(data, LinearIndexParams());
+    flann::Index<flann::ChiSquareDistance<float>> index(data, flann::LinearIndexParams());
     index.buildIndex();
     std::cout << "VFH model data loaded and index built" << std::endl;
 

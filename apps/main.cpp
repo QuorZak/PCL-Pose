@@ -1,5 +1,7 @@
 #include <pose_estimation.h>
 
+using namespace pcl_pose;
+
 int main(int argc, char** argv) {
     std::string input_name = "capture.pcd";
     std::string output_directory = "../pose_estimation_cluster";
@@ -7,8 +9,8 @@ int main(int argc, char** argv) {
     auto thresh = DBL_MAX;
 
     std::vector<vfh_model> models;
-    Matrix<int> k_indices;
-    Matrix<float> k_distances;
+    flann::Matrix<int> k_indices;
+    flann::Matrix<float> k_distances;
 
     pcl::console::parse_argument(argc, argv, "-i", input_name);
     pcl::console::parse_argument(argc, argv, "-m", model_directory);
@@ -42,12 +44,12 @@ int main(int argc, char** argv) {
     load_vfh_model_data(model_directory, models, model_files);
 
     std::unique_ptr<float[]> data_ptr(new float[models.size() * models[0].second.size()]);
-    Matrix data(data_ptr.get(), models.size(), models[0].second.size());
+    flann::Matrix data(data_ptr.get(), models.size(), models[0].second.size());
     for (size_t i = 0; i < data.rows; ++i)
         for (size_t j = 0; j < data.cols; ++j)
             data[i][j] = models[i].second[j];
 
-    Index<ChiSquareDistance<float>> index(data, LinearIndexParams());
+    flann::Index<flann::ChiSquareDistance<float>> index(data, flann::LinearIndexParams());
     index.buildIndex();
 
     PoseManager pose_manager;

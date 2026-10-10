@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <filesystem>
 
+namespace pcl_pose {
+
 std::vector<std::string> listPcdFiles(const std::string& folder, const std::string& prefix) {
   namespace fs = std::filesystem;
   std::vector<std::string> files;
@@ -20,3 +22,5 @@ std::vector<std::string> listPcdFiles(const std::string& folder, const std::stri
   std::sort(files.begin(), files.end());
   return files;
 }
+
+}  // namespace pcl_pose

@@ -1,0 +1,8 @@
+# Keep line endings consistent (LF) whichever system the repository is checked out on
+* text=auto eol=lf
+
+# Binary files
+*.pdf binary
+*.png binary
+*.stl binary
+*.ipt binary
