@@ -4,7 +4,7 @@ using namespace pcl_pose;
 
 int main(int argc, char** argv) {
     std::string input_name = "capture.pcd";
-    std::string output_directory = "../pose_estimation_cluster";
+    constexpr bool debugging_cluster_filtering = false;
     int k = 6;
     auto thresh = DBL_MAX;
 
@@ -31,13 +31,15 @@ int main(int argc, char** argv) {
         auto frames = pipeline.wait_for_frames();
     }
 
-    pcl::PointCloud<pcl::PointXYZ>::Ptr output_stream_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+    std::shared_ptr<pcl::PointCloud<pcl::PointXYZ>> output_stream_cloud(new pcl::PointCloud<pcl::PointXYZ>);
     std::shared_ptr<std::vector<pcl::PointIndices>> cluster_indices(new std::vector<pcl::PointIndices>);
     std::mutex mtx;
     std::condition_variable condition_var;
     bool ready = false;
 
-    std::thread processing_thread(processPointCloud, std::ref(pipeline), std::ref(output_stream_cloud), std::ref(cluster_indices), std::ref(mtx), std::ref(condition_var), std::ref(ready));
+    std::thread processing_thread(processPointCloud, std::ref(pipeline), std::ref(output_stream_cloud),
+        std::ref(cluster_indices), std::ref(debugging_cluster_filtering), std::ref(mtx), std::ref(condition_var),
+        std::ref(ready));
 
     // Load the VFH model data and store the names of the models in the order they are in the index
     std::vector<std::string> model_files;

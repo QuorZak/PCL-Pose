@@ -48,7 +48,7 @@ function(add_pose_app name source)
   target_link_libraries(${name} pose_core)
 endfunction()
 
-# Main executable (experimental, does not build yet, so it is left out of the default build)
+# Main executable (experimental, so it is left out of the default build: build it with `make pose`)
 add_executable(pose EXCLUDE_FROM_ALL apps/main.cpp)
 target_link_libraries(pose pose_core)
 # Manual Measure executable

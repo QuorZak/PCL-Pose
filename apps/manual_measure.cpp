@@ -8,11 +8,12 @@ int main() {
     std::string input_name = "spray_bottle.pcd";
     constexpr bool debugging_cluster_filtering = false;
     constexpr bool debugging_target_acquire = false;
-    constexpr bool use_averaging = false; // not working correctly at the moment
+    constexpr bool use_averaging = false; // averages the closest point over several frames (not tried on the robot yet)
     constexpr bool do_calibration = false;
     constexpr int k_val = 6;
     constexpr int closest_point_averaging_buffer_size = 10;
-    Eigen::MatrixXf closest_point_buffer(3, closest_point_averaging_buffer_size);
+    Eigen::MatrixXf closest_point_buffer = Eigen::MatrixXf::Zero(3, closest_point_averaging_buffer_size);
+    int closest_point_buffer_count = 0; // How many samples are in the buffer so far
 
     std::vector<vfh_model> models;
     std::vector<std::string> model_files; // Vector to store file names
@@ -128,7 +129,7 @@ int main() {
             pcl::PointCloud<pcl::PointXYZ>::Ptr object_band(new pcl::PointCloud<pcl::PointXYZ>);
             // Get the middle (y) of the object
             float y_min = std::numeric_limits<float>::max();
-            float y_max = std::numeric_limits<float>::min();
+            float y_max = std::numeric_limits<float>::lowest();
             for (const auto& point : object_wrt_TCP->points) {
                 if (point.y < y_min) {
                     y_min = point.y;
@@ -140,7 +141,7 @@ int main() {
             // Get the middle (x) of the object
             float x_sum = 0;
             float x_min = std::numeric_limits<float>::max();
-            float x_max = std::numeric_limits<float>::min();
+            float x_max = std::numeric_limits<float>::lowest();
             for (const auto& point : object_wrt_TCP->points) {
                 x_sum += point.x;
                 if (point.x < x_min) {
@@ -206,23 +207,27 @@ int main() {
                 std::cout << "No points in the object band" << std::endl;
                 continue;
             }
-            if (use_averaging) // Isn't working at time of comment
+            if (use_averaging)
             {
                 // Get a series of samples of the closest point to the camera before progressing
-                // Add the point to the buffer, then check if the count is reached
-                closest_point_buffer.block<3, closest_point_averaging_buffer_size - 1>(0, 0) = closest_point_buffer.block<3, closest_point_averaging_buffer_size - 1>(0, 1);
+                // Add the point to the buffer (shifting the older samples along), then check if the count is reached
+                // (.eval() because the source and destination overlap)
+                closest_point_buffer.leftCols(closest_point_averaging_buffer_size - 1) =
+                    closest_point_buffer.rightCols(closest_point_averaging_buffer_size - 1).eval();
                 Eigen::Vector3f buffer_input;
                 buffer_input(0) = closest_point(0);
                 buffer_input(1) = closest_point(1);
                 buffer_input(2) = closest_point(2);
-                closest_point_buffer.block<3, 1>(0, closest_point_averaging_buffer_size - 1) = buffer_input;
+                closest_point_buffer.col(closest_point_averaging_buffer_size - 1) = buffer_input;
+                closest_point_buffer_count++;
                 // If the count is reached, then average the points, clear the buffer and continue
-                if (closest_point_buffer.cols() == closest_point_averaging_buffer_size) {
+                if (closest_point_buffer_count >= closest_point_averaging_buffer_size) {
                     Eigen::Vector3f average_closest_point = closest_point_buffer.rowwise().mean();
                     closest_point(0) = average_closest_point(0);
                     closest_point(1) = average_closest_point(1);
                     closest_point(2) = average_closest_point(2);
                     closest_point_buffer.setZero();
+                    closest_point_buffer_count = 0;
                     std::cout << "Closest point averaged" << std::endl;
                 } else
                 {
@@ -255,9 +260,9 @@ int main() {
             std::cout << std::fixed << std::setprecision(2) << adjusted_point(1) << std::endl;
             std::cout << "z: ";
             std::cout << std::fixed << std::setprecision(2) << adjusted_point(2) << std::endl;
-            if (home_position == HomePosition::ELEVATED || home_position == HomePosition::ANY
-                && rx_axis_rotation_degrees >= 1.0f) {
-                // If the home position is elevated, then the rotation needs to be applied
+            if ((home_position == HomePosition::ELEVATED || home_position == HomePosition::ANY)
+                && std::fabs(rx_axis_rotation_degrees) >= 1.0f) {
+                // If the camera is tilted (by 1 degree or more, either way), then the rotation needs to be applied
                 std::cout << "RX (Rotation Vector degrees): ";
                 std::cout << std::fixed << std::setprecision(1) << rx_axis_rotation_degrees << std::endl;
             }

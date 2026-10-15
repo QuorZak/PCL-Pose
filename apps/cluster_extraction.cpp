@@ -20,21 +20,13 @@ int main () {
   constexpr int desired_cluster_size = 1;
 
   // Declare any variables so they don't have to be redefined each time
-  std::unique_ptr<Eigen::Matrix4f> object_pose(new Eigen::Matrix4f());
+  // Start from the identity: getPointCloudOriginAndAxes only sets the rotation part of the pose, and the rest used to
+  // be uninitialised memory that was then applied to the cloud
+  Eigen::Matrix4f object_pose = Eigen::Matrix4f::Identity();
   pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
 
-  // Get the highest file number
-  int file_num = 0;
-  for (const auto& entry : std::filesystem::directory_iterator(output_folder)) {
-    std::string filename = entry.path().filename().string();
-    if (filename.find(object_name) != std::string::npos && filename.find(".pcd") != std::string::npos) {
-      int num = std::stoi(filename.substr(object_name.size() + 1, 4));
-      if (num > file_num) {
-        file_num = num;
-      }
-    }
-  }
-  file_num += 1;
+  // The next free capture number (the folder is created if it does not exist yet)
+  int file_num = nextFileNumber(output_folder, object_name);
 
   // Initialise the Realsense pipeline
   rs2::pipeline pipe;
@@ -123,10 +115,10 @@ int main () {
         cloud_cluster->is_dense = true;
 
         // Set the front direction of the point cloud
-        getPointCloudOriginAndAxes(cloud_cluster,*object_pose, object_facing_angle, calibration_angle_offset, accel_data);
+        getPointCloudOriginAndAxes(cloud_cluster, object_pose, object_facing_angle, calibration_angle_offset, accel_data);
 
         // Transform the point cloud using the new pose
-        transformPointCloud(*cloud_cluster, *cloud_cluster, *object_pose);
+        transformPointCloud(*cloud_cluster, *cloud_cluster, object_pose);
 
         // Save the point cloud
         std::cout << "PointCloud representing the Cluster: " << cloud_cluster->size() << " data points." << std::endl;

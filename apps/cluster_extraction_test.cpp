@@ -14,18 +14,8 @@ int main() {
   const std::string output_folder = "../lab_data/test/";
   //const std::string output_folder = "../lab_data/" + test_name + "/";
 
-  // Get the highest file number
-  int file_num = 0;
-  for (const auto& entry : std::filesystem::directory_iterator(output_folder)) {
-    std::string filename = entry.path().filename().string();
-    if (filename.find(test_name) != std::string::npos && filename.find(".pcd") != std::string::npos) {
-      int num = std::stoi(filename.substr(test_name.size() + 1, 4));
-      if (num > file_num) {
-        file_num = num;
-      }
-    }
-  }
-  file_num += 1;
+  // The next free capture number (the folder is created if it does not exist yet, as lab_data/test is not in git)
+  int file_num = nextFileNumber(output_folder, test_name);
 
   // Declare any variables
   pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);

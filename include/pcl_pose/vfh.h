@@ -37,6 +37,9 @@ void load_vfh_model_data(const std::filesystem::path &base_dir, std::vector<vfh_
 // This function finds the k nearest neighbors of the query object and returns their indices in the K-d tree and distances from the query object
 // Inputs: K-d tree, query object model, desired candidate count (k)
 // Outputs: K-d tree indices of candidates, Distances of candidates from the query object
+// The two result matrices are allocated by this function: start with default-constructed matrices, and reuse the same
+// ones for every call (each call frees the previous allocation). Do not pass in matrices that point at memory
+// owned elsewhere.
 void nearestKSearch(const flann::Index<flann::ChiSquareDistance<float> > &index, const vfh_model &model,
   int k, flann::Matrix<int> &indices, flann::Matrix<float> &distances);
 

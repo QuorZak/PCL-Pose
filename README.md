@@ -50,7 +50,7 @@ The programs in the `apps` folder:
 - `generate_markers.cpp` (`generate_markers`) - Writes the ArUco marker images into `f_markers/`.
 
 Files that need work to be run reliably, or are not currently working:
-- `main.cpp` (`pose`) - This file was intended to be the main file for the project. It attempts to find the 6D pose of the object by comparing the point cloud to the library of point clouds. The library is supposed to contain point clouds with the Z axis pointing forward, so the object must be rotated to match the library. Ensure you have a reliable library including defined x,y,z axis with respect to object pose.
+- `main.cpp` (`pose`, not part of the default build: use `make pose`) - This file was intended to be the main file for the project. It attempts to find the 6D pose of the object by comparing the point cloud to the library of point clouds. The library is supposed to contain point clouds with the Z axis pointing forward, so the object must be rotated to match the library. Ensure you have a reliable library including defined x,y,z axis with respect to object pose.
 
 ## Setting up the project for your own configuration
 You should review all the parameters defined in `include/pcl_pose/parameters.h`. Many of the parameters are hard-coded to match the setup in my lab, and the equipment I have available. You will need to adjust these parameters to match your own setup. The parameters are defined at the top of the file, and are well commented. You should be able to adjust the parameters to match your setup.

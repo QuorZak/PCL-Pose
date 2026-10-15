@@ -120,14 +120,17 @@ void load_vfh_model_data(const std::filesystem::path &base_dir, std::vector<vfh_
 void nearestKSearch(const flann::Index<flann::ChiSquareDistance<float> > &index, const vfh_model &model,
   const int k, flann::Matrix<int> &indices, flann::Matrix<float> &distances)
 {
-  // Query point
-  flann::Matrix<float> p = flann::Matrix<float>(new float[model.second.size ()], 1, model.second.size ());
-  memcpy (&p.ptr ()[0], &model.second[0], p.cols * p.rows * sizeof (float));
+  // Query point. The vector owns the memory, the matrix only points at it, so nothing needs freeing afterwards
+  std::vector<float> query(model.second);
+  flann::Matrix<float> p(query.data(), 1, query.size());
 
+  // The result matrices are allocated here, so free what an earlier call allocated (nothing on the first call)
+  // before replacing it. This is what used to leak on every frame of the live loops.
+  delete[] indices.ptr();
+  delete[] distances.ptr();
   indices = flann::Matrix<int>(new int[k], 1, k);
   distances = flann::Matrix<float>(new float[k], 1, k);
   index.knnSearch (p, indices, distances, k, flann::SearchParams (512));
-  delete[] p.ptr ();
 }
 
 }  // namespace pcl_pose
