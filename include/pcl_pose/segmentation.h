@@ -1,4 +1,5 @@
 #pragma once
+#include <atomic>
 #include <condition_variable>
 #include <memory>
 #include <mutex>
@@ -18,12 +19,18 @@ void filterAndSegmentPointCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud
   pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud_filtered, std::vector<pcl::PointIndices>& cluster_indices,
   bool debugging = false);
 
-// Runs forever on its own thread: captures depth frames, turns them into a point cloud and extracts the clusters.
-// The latest result is copied into output_stream_cloud and cluster_indices under the mutex, and ready is set
-// and the condition variable notified.
-[[noreturn]] void processPointCloud(const rs2::pipeline& pipeline,
+// Meant to run on its own thread until stop_requested is set: captures depth frames, turns them into a point cloud and
+// extracts the clusters. The latest result is copied into output_stream_cloud and cluster_indices under the mutex,
+// and ready is set and the condition variable notified.
+//
+// This function is the only one that should read frames from the pipeline. If accel_data is not a nullptr, the
+// pipeline must have the accelerometer stream enabled, and the latest accelerometer reading is written to
+// accel_data (under the same mutex, together with each result), so the caller does not have to read frames itself.
+void processPointCloud(const rs2::pipeline& pipeline,
   std::shared_ptr<pcl::PointCloud<pcl::PointXYZ>>& output_stream_cloud,
   const std::shared_ptr<std::vector<pcl::PointIndices>>& cluster_indices,
-  const bool& debug, std::mutex& mtx, std::condition_variable& cv, bool& ready);
+  rs2_vector* accel_data,
+  const bool& debug, std::mutex& mtx, std::condition_variable& cv, bool& ready,
+  const std::atomic<bool>& stop_requested);
 
 }  // namespace pcl_pose

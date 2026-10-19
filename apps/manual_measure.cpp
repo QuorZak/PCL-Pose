@@ -20,10 +20,29 @@ int main() {
     flann::Matrix<int> k_indices;
     flann::Matrix<float> k_distances;
 
+    // Load the VFH model data and store the names of the models in the order they are in the index
+    // (before starting the camera and the thread, so there is nothing to shut down if the library is empty)
+    load_vfh_model_data(model_directory, models, model_files);
+    if (models.empty()) {
+        std::cerr << "No VFH models found in " << model_directory << std::endl;
+        return 1;
+    }
+    // Convert the models to FLANN format
+    std::unique_ptr<float[]> data_ptr(new float[models.size() * models[0].second.size()]);
+    flann::Matrix data(data_ptr.get(), models.size(), models[0].second.size());
+    for (size_t i = 0; i < data.rows; ++i)
+        for (size_t j = 0; j < data.cols; ++j)
+            data[i][j] = models[i].second[j];
+    // Build the FLANN index. This is the data structure that will be used to search for the best match
+    flann::Index<flann::ChiSquareDistance<float>> index(data, flann::LinearIndexParams());
+    index.buildIndex();
+    std::cout << "VFH model data loaded and index built" << std::endl;
+
     // Start the Realsense pipeline
     rs2::pipeline pipeline;
     rs2::config cfg;
-    rs2_vector accel_data;
+    rs2_vector accel_data{}; // Written by the processing thread (under the mutex) together with each point cloud
+    rs2_vector accel_data_local{}; // The copy that this thread works with
     float rx_axis_rotation_degrees = 0.0f;
     cfg.enable_stream(RS2_STREAM_DEPTH, cam_res_width, cam_res_height, RS2_FORMAT_Z16, cam_fps);
     if (home_position == HomePosition::ELEVATED || home_position == HomePosition::ANY) {
@@ -42,23 +61,18 @@ int main() {
     std::mutex mtx;
     std::condition_variable condition_var;
     bool ready = false;
+    std::atomic<bool> stop_requested{false};
 
-    // This thread will constantly capture data from the Realsense camera and produce clustered point clouds
+    // This thread will constantly capture data from the Realsense camera and produce clustered point clouds.
+    // It is the only place that reads frames from the pipeline: it also hands over the accelerometer data with each
+    // point cloud (accel_data), so this thread must not call pipeline.wait_for_frames() itself.
+    rs2_vector* accel_output = nullptr;
+    if (home_position == HomePosition::ELEVATED || home_position == HomePosition::ANY) {
+        accel_output = &accel_data;
+    }
     std::thread processing_thread(processPointCloud, std::ref(pipeline), std::ref(output_stream_cloud),
-        std::ref(cluster_indices), std::ref(debugging_cluster_filtering), std::ref(mtx), std::ref(condition_var), std::ref(ready));
-
-    // Load the VFH model data and store the names of the models in the order they are in the index
-    load_vfh_model_data(model_directory, models, model_files);
-    // Convert the models to FLANN format
-    std::unique_ptr<float[]> data_ptr(new float[models.size() * models[0].second.size()]);
-    flann::Matrix data(data_ptr.get(), models.size(), models[0].second.size());
-    for (size_t i = 0; i < data.rows; ++i)
-        for (size_t j = 0; j < data.cols; ++j)
-            data[i][j] = models[i].second[j];
-    // Build the FLANN index. This is the data structure that will be used to search for the best match
-    flann::Index<flann::ChiSquareDistance<float>> index(data, flann::LinearIndexParams());
-    index.buildIndex();
-    std::cout << "VFH model data loaded and index built" << std::endl;
+        std::ref(cluster_indices), accel_output, std::ref(debugging_cluster_filtering), std::ref(mtx),
+        std::ref(condition_var), std::ref(ready), std::ref(stop_requested));
 
     PoseManager pose_manager;
 
@@ -73,14 +87,8 @@ int main() {
             condition_var.wait(lock, [&ready] { return ready; });
             *output_stream_cloud_local = *output_stream_cloud;
             cluster_indices_local = *cluster_indices;
+            accel_data_local = accel_data; // The camera's tilt from the same moment as the point cloud
             ready = false;
-        }
-        if (home_position == HomePosition::ELEVATED || home_position == HomePosition::ANY)
-        {
-            // Get the current camera pose accel data
-            rs2::frameset frames = pipeline.wait_for_frames();
-            rs2::motion_frame accel_frame = frames.first_or_default(RS2_STREAM_ACCEL);
-            accel_data = accel_frame.get_motion_data();
         }
 
         // Initialise the best cluster variables
@@ -122,7 +130,7 @@ int main() {
             if (home_position == HomePosition::ELEVATED || home_position == HomePosition::ANY)
             {
                 Eigen::Matrix4f y_align_rotation = Eigen::Matrix4f::Identity();
-                align_yaxis_with_gravity(object_wrt_TCP, y_align_rotation, accel_data, rx_axis_rotation_degrees);
+                align_yaxis_with_gravity(object_wrt_TCP, y_align_rotation, accel_data_local, rx_axis_rotation_degrees);
             }
 
             // Trim the point cloud to get a center target around the middle lower part of the object
@@ -163,7 +171,7 @@ int main() {
             // Get the points that are average or above the middle of the object (because y is flipped we want the bottom part)
             // Also as we are iterating through the points, store the closest one (in the z direction) to the camera
             // Trim any points that are on the sides of the object
-            Eigen::Matrix4f closest_point;
+            Eigen::Vector3f closest_point = Eigen::Vector3f::Zero(); // In metres, in the TCP frame
             float closest_distance = std::numeric_limits<float>::max();
             for (const auto& point : object_wrt_TCP->points) {
                 // only consider the center target area
@@ -235,13 +243,11 @@ int main() {
                 }
             }
 
-            Eigen::Matrix4f adjusted_point = closest_point;
-            // Set the adjusted pose to a human-readable format (mm)
-            adjusted_point(0) *= 1000;
-            adjusted_point(1) *= 1000;
-            adjusted_point(2) *= 1000;
-            // Apply the pose manager's calibration adjustments to the adjusted point
-            adjusted_point = adjusted_point * pose_manager.getPoseCalibrationAdjuster();
+            // Apply the pose manager's calibration adjustments (a translation in metres) to the closest point. This used
+            // to multiply two 4x4 matrices, which never moved the point and mixed mm with metres.
+            const Eigen::Vector4f calibrated_point = pose_manager.getPoseCalibrationAdjuster() * closest_point.homogeneous();
+            // Set the adjusted point to a human-readable format (mm)
+            Eigen::Vector3f adjusted_point = calibrated_point.head<3>() * 1000.0f;
             std::cout << "Closest point detected at: " << std::endl;
             std::cout << "x: " << adjusted_point(0) << " mm" << std::endl;
             std::cout << "y: " << adjusted_point(1) << " mm" << std::endl;

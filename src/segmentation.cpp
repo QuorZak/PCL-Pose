@@ -92,15 +92,35 @@ void filterAndSegmentPointCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud
   }
 }
 
-[[noreturn]] void processPointCloud(const rs2::pipeline& pipeline,
+void processPointCloud(const rs2::pipeline& pipeline,
   std::shared_ptr<pcl::PointCloud<pcl::PointXYZ>>& output_stream_cloud,
   const std::shared_ptr<std::vector<pcl::PointIndices>>& cluster_indices,
-  const bool& debug, std::mutex& mtx, std::condition_variable& cv, bool& ready)
+  rs2_vector* accel_data,
+  const bool& debug, std::mutex& mtx, std::condition_variable& cv, bool& ready,
+  const std::atomic<bool>& stop_requested)
 {
   initialise_filters();
-  while (true) {
+  rs2_vector latest_accel{};
+  bool have_accel = false;
+  while (!stop_requested) {
     auto frames = pipeline.wait_for_frames();
+
+    // Keep the latest accelerometer reading. The accelerometer and the depth camera do not always arrive in the same
+    // frameset, so this is done for every frameset.
+    if (accel_data != nullptr) {
+      if (const rs2::frame accel_frame = frames.first_or_default(RS2_STREAM_ACCEL)) {
+        latest_accel = accel_frame.as<rs2::motion_frame>().get_motion_data();
+        have_accel = true;
+      }
+    }
+
     const auto depth = frames.get_depth_frame();
+    if (!depth) {
+      continue; // This frameset only had motion data
+    }
+    if (accel_data != nullptr && !have_accel) {
+      continue; // Wait until we know which way is up
+    }
     rs2::depth_frame filtered_depth = apply_depth_post_processing_filters(depth);
     auto cloud = depthFrameToPointCloud(filtered_depth, true, debug);
     pcl::PointCloud<pcl::PointXYZ>::Ptr filtered_cloud_clusters(new pcl::PointCloud<pcl::PointXYZ>);
@@ -118,6 +138,9 @@ void filterAndSegmentPointCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud
       std::lock_guard<std::mutex> lock(mtx);
       *output_stream_cloud = *filtered_cloud_clusters;
       *cluster_indices = cluster_indices_local;
+      if (accel_data != nullptr) {
+        *accel_data = latest_accel;
+      }
       ready = true;
     }
     cv.notify_one();

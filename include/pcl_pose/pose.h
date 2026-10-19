@@ -31,7 +31,17 @@ public:
     {
       const float distance = (stored_pose.block<3, 1>(0, 3) - pose.block<3, 1>(0, 3)).norm();
       const float update_factor = calculateUpdateFactor(distance);
-      stored_pose = update_factor * pose + (1.0f - update_factor) * stored_pose;
+      // Blend the rotation with a spherical interpolation and the translation linearly. Blending the whole 4x4 matrix
+      // linearly (as this used to) does not give a valid rotation.
+      const Eigen::Matrix3f stored_rotation = stored_pose.block<3, 3>(0, 0);
+      const Eigen::Matrix3f new_rotation = pose.block<3, 3>(0, 0);
+      const Eigen::Quaternionf blended_rotation =
+        Eigen::Quaternionf(stored_rotation).slerp(update_factor, Eigen::Quaternionf(new_rotation));
+      Eigen::Matrix4f blended_pose = Eigen::Matrix4f::Identity();
+      blended_pose.block<3, 3>(0, 0) = blended_rotation.toRotationMatrix();
+      blended_pose.block<3, 1>(0, 3) =
+        update_factor * pose.block<3, 1>(0, 3) + (1.0f - update_factor) * stored_pose.block<3, 1>(0, 3);
+      stored_pose = blended_pose;
       return;
     }
     stored_pose = pose;

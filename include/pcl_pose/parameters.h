@@ -56,6 +56,7 @@ inline const Eigen::Matrix4f camera_to_TCP = (Eigen::Matrix4f() <<
 // Some documentation alludes to the ground truth adjustment for the depth reading regarding Intel D455 being -4.55mm z from the front surface
 
 // The offset for the end effector attachment and it's collision with different objects
+// Careful: this one is in mm, while most other distances in the project are in metres
 inline float spray_collision_offset = -57.0f;
 
 //create an enum called home_position
