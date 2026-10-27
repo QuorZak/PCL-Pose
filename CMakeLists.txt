@@ -37,6 +37,7 @@ add_library(pose_core STATIC
   src/segmentation.cpp
   src/vfh.cpp
   src/files.cpp
+  src/library.cpp
   src/viewer.cpp
   src/pose.cpp)
 target_include_directories(pose_core PUBLIC include)
@@ -57,6 +58,8 @@ add_pose_app(manual_measure apps/manual_measure.cpp)
 add_pose_app(extraction apps/cluster_extraction.cpp)
 # Cluster Extraction test executable (single capture into lab_data/test)
 add_pose_app(extraction_test apps/cluster_extraction_test.cpp)
+# Library tool: checks the object library, and with --apply centres the clouds and recomputes the VFH signatures
+add_pose_app(rebuild_vfh apps/rebuild_vfh.cpp)
 # Scratch tools executable (a playground for trying out the functions, not an automated test suite)
 add_pose_app(scratch_tools apps/scratch_tools.cpp)
 

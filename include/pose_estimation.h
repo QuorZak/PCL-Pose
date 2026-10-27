@@ -42,5 +42,6 @@
 #include "pcl_pose/segmentation.h"
 #include "pcl_pose/vfh.h"
 #include "pcl_pose/files.h"
+#include "pcl_pose/library.h"
 #include "pcl_pose/viewer.h"
 #include "pcl_pose/pose.h"

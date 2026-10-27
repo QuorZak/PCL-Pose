@@ -39,6 +39,7 @@ The library is split by job. `include/pose_estimation.h` pulls in all of it (and
 - `segmentation.h` / `src/segmentation.cpp` - Plane removal and cluster extraction, plus the thread function that does it continuously.
 - `vfh.h` / `src/vfh.cpp` - VFH signatures, loading the library and the nearest-neighbour search.
 - `pose.h` / `src/pose.cpp` - The pose manager, ICP, gravity alignment and the coordinate system overlay.
+- `library.h` / `src/library.cpp` - Finding and centring the clouds of the object library.
 - `viewer.h`, `files.h` - Point cloud viewing and listing files.
 
 The programs in the `apps` folder:
@@ -48,6 +49,7 @@ The programs in the `apps` folder:
 - `scratch_tools.cpp` (`scratch_tools`) - A scratch file for trying out the functions in the library (viewing saved clouds, streaming the depth map, matching a capture against the library). It is not an automated test suite.
 - `main_marker.cpp` (`marker`) and `marker_pose_estimation.h` - Detect ArUco markers in the colour stream and print their pose. Useful for testing the pose, camera calibration, and distances.
 - `generate_markers.cpp` (`generate_markers`) - Writes the ArUco marker images into `f_markers/`.
+- `rebuild_vfh.cpp` (`rebuild_vfh`) - Checks that every cloud in the object library is centred on its centroid, and with `--apply` centres them and recomputes the paired VFH signatures. No camera needed. See `lab_data/LIBRARY_NOTES.md`.
 
 Files that need work to be run reliably, or are not currently working:
 - `main.cpp` (`pose`, not part of the default build: use `make pose`) - This file was intended to be the main file for the project. It attempts to find the 6D pose of the object by comparing the point cloud to the library of point clouds. The library is supposed to contain point clouds with the Z axis pointing forward, so the object must be rotated to match the library. Ensure you have a reliable library including defined x,y,z axis with respect to object pose.
@@ -56,7 +58,7 @@ Files that need work to be run reliably, or are not currently working:
 You should review all the parameters defined in `include/pcl_pose/parameters.h`. Many of the parameters are hard-coded to match the setup in my lab, and the equipment I have available. You will need to adjust these parameters to match your own setup. The parameters are defined at the top of the file, and are well commented. You should be able to adjust the parameters to match your setup.
 
 ## Setting up your own library
-To set up your own library of point clouds, use `cluster_extraction.cpp` (the `extraction` program). Set `object_name` in the file, run it, and for each capture type the angle the object is facing. It saves each cluster and its paired VFH into `lab_data/<object_name>/`. Creating a folder for each object is recommended.
+To set up your own library of point clouds, use `cluster_extraction.cpp` (the `extraction` program). Every cloud in the library should be centred on its centroid (see `lab_data/LIBRARY_NOTES.md`; `rebuild_vfh` checks this). Set `object_name` in the file, run it, and for each capture type the angle the object is facing. It saves each cluster and its paired VFH into `lab_data/<object_name>/`. Creating a folder for each object is recommended.
 
 ## Running the manual measure
 Make sure you have very accurately changed the hard-coded parameters in `include/pcl_pose/parameters.h` to match your setup. You can then run the `manual_measure` program. It will measure the objects in the scene, find the object that is most similar to the known library of point clouds, and calculate the parameters for a robot arm to grasp the object. It is important that you point the program to the correct library location (`model_directory` in `parameters.h`) as it attempts to find the object in the scene that best matches a known object. You should see the output in the terminal.
