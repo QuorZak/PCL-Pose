@@ -33,6 +33,7 @@ include_directories(include)
 
 # The library: everything the programs share (camera, segmentation, VFH matching, pose)
 add_library(pose_core STATIC
+  src/config.cpp
   src/camera.cpp
   src/segmentation.cpp
   src/vfh.cpp

@@ -28,6 +28,7 @@ Run the programs from inside the `build` folder, because the default data paths 
 ## Repository contents
 - `include/` and `src/` - The pose library (`pose_core`), shared by the programs, described below.
 - `apps/` - The programs, described below.
+- `config/` - YAML parameter files (`default.yaml` has every key with its default value).
 - `lab_data/` - The object library: point clouds (`<object>_NNNN.pcd`) with their paired VFH signatures (`<object>_NNNN_vfh.pcd`), one folder per object.
 - `f_markers/` - ArUco marker images created by `generate_markers`.
 - `docs/` - The research report.
@@ -35,6 +36,7 @@ Run the programs from inside the `build` folder, because the default data paths 
 
 The library is split by job. `include/pose_estimation.h` pulls in all of it (and the third-party headers it uses), so a program only needs that one include:
 - `include/pcl_pose/parameters.h` - Almost every possible parameter or global variable is declared here, so if you want to adjust the parameters for cluster extraction, or filtering for example, you are likely to find it in this file.
+- `config.h` / `src/config.cpp` - Loading the parameters from a YAML file and the `--config` flag.
 - `camera.h` / `src/camera.cpp` - RealSense depth filters and the conversion of a depth frame to a point cloud.
 - `segmentation.h` / `src/segmentation.cpp` - Plane removal and cluster extraction, plus the thread function that does it continuously.
 - `vfh.h` / `src/vfh.cpp` - VFH signatures, loading the library and the nearest-neighbour search.
@@ -54,14 +56,15 @@ The programs in the `apps` folder:
 Files that need work to be run reliably, or are not currently working:
 - `main.cpp` (`pose`, not part of the default build: use `make pose`) - This file was intended to be the main file for the project. It attempts to find the 6D pose of the object by comparing the point cloud to the library of point clouds. The library is supposed to contain point clouds with the Z axis pointing forward, so the object must be rotated to match the library. Ensure you have a reliable library including defined x,y,z axis with respect to object pose.
 
-## Setting up the project for your own configuration
-You should review all the parameters defined in `include/pcl_pose/parameters.h`. Many of the parameters are hard-coded to match the setup in my lab, and the equipment I have available. You will need to adjust these parameters to match your own setup. The parameters are defined at the top of the file, and are well commented. You should be able to adjust the parameters to match your setup.
+## Configuration
+The tunable values (camera stream, cloud filtering, ICP, the camera-to-TCP offset, the library location...) are described in `include/pcl_pose/parameters.h` and can be changed without recompiling from a YAML file. `config/default.yaml` lists every key with its default value, which suits the setup in my lab. Many of them are hard-coded to match the equipment I have available, so you will need to adjust them to match your own setup: copy the file, edit it, and run a program with `--config <your file>`. When no `--config` is given, a program started from the `build` folder loads `../config/default.yaml` if it exists, and keys that are missing keep their default value.
 
+The programs also take command-line flags instead of editing the code (`--object`, `-m`, `-k`, `--home`, `--average`, `--calibrate`, `--debug-clusters`, `--debug-target`). Each program lists its own flags in the comment above `main()`.
 ## Setting up your own library
 To set up your own library of point clouds, use `cluster_extraction.cpp` (the `extraction` program). Every cloud in the library should be centred on its centroid (see `lab_data/LIBRARY_NOTES.md`; `rebuild_vfh` checks this). Set `object_name` in the file, run it, and for each capture type the angle the object is facing. It saves each cluster and its paired VFH into `lab_data/<object_name>/`. Creating a folder for each object is recommended.
 
 ## Running the manual measure
-Make sure you have very accurately changed the hard-coded parameters in `include/pcl_pose/parameters.h` to match your setup. You can then run the `manual_measure` program. It will measure the objects in the scene, find the object that is most similar to the known library of point clouds, and calculate the parameters for a robot arm to grasp the object. It is important that you point the program to the correct library location (`model_directory` in `parameters.h`) as it attempts to find the object in the scene that best matches a known object. You should see the output in the terminal.
+Make sure you have very accurately set the parameters in the config file (see Configuration) to match your setup. You can then run the `manual_measure` program. It will measure the objects in the scene, find the object that is most similar to the known library of point clouds, and calculate the parameters for a robot arm to grasp the object. It is important that you point the program to the correct library location (`model_directory` in the config file, or `-m <folder>`) as it attempts to find the object in the scene that best matches a known object. You should see the output in the terminal.
 
 ## Licence
 Free for noncommercial use, including personal use, research and education, under the [PolyForm Noncommercial License 1.0.0](LICENSE). For commercial use, please contact me for permission at zakquor@gmail.com.

@@ -3,6 +3,9 @@
 using namespace pcl_pose;
 
 int main(int argc, char** argv) {
+    if (!loadConfigFromArguments(argc, argv)) {
+        return 1;
+    }
     std::string input_name = "capture.pcd";
     constexpr bool debugging_cluster_filtering = false;
     int k = 6;

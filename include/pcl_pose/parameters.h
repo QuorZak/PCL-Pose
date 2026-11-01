@@ -5,27 +5,31 @@
 
 namespace pcl_pose {
 
+// All the tunable values in one place. They start with the defaults below, and can be changed without recompiling by
+// loading a YAML file (see config.h and config/default.yaml). The key in the YAML file is the name of the variable.
+// The values are meant to be loaded once at the start of a program, before any threads are started.
+
 // Declare global variables that all functions in the library and the programs can access
-inline const int image_reduced_to_percentage = 80;
-inline const float depth_filter_min_distance = 0.25f;
-inline const float depth_filter_max_distance = 0.7f;
+inline int image_reduced_to_percentage = 80;
+inline float depth_filter_min_distance = 0.25f;
+inline float depth_filter_max_distance = 0.7f;
 
 // Global camera config params
 // 848x480 resolution, 15 frames per second is optimal for Realsense D455
-inline const int cam_res_width = 848; // Standard 640
-inline const int cam_res_height = 480; // Standard 480
-inline const int cam_fps = 15;
+inline int cam_res_width = 848; // Standard 640
+inline int cam_res_height = 480; // Standard 480
+inline int cam_fps = 15;
 
 // Parameters for cloud filtering
-inline const float leaf_size = 0.004f; // 0.01f default
-inline const float cluster_tolerance = 0.010f; // 0.02 default
-inline const int min_cluster_size = 500; // 100 default
-inline const int max_cluster_size = 25000; // 25000 default
-inline const float segment_distance_threshold = 0.02f; // 0.02 default
-inline const float segment_probability = 0.99f; // try 0.99 ? Increase the probability to get a good sample
-inline const float segment_radius_min = 0.01f; // try 0.01 ? Set radius limits to avoid collinear points
-inline const float segment_radius_max = 0.1f; // try 0.1 ?
-inline const float filter_cluster_to_x_percent = 0.99f; // 0.4 default
+inline float leaf_size = 0.004f; // 0.01f default
+inline float cluster_tolerance = 0.010f; // 0.02 default
+inline int min_cluster_size = 500; // 100 default
+inline int max_cluster_size = 25000; // 25000 default
+inline float segment_distance_threshold = 0.02f; // 0.02 default
+inline float segment_probability = 0.99f; // try 0.99 ? Increase the probability to get a good sample
+inline float segment_radius_min = 0.01f; // try 0.01 ? Set radius limits to avoid collinear points
+inline float segment_radius_max = 0.1f; // try 0.1 ?
+inline float filter_cluster_to_x_percent = 0.99f; // 0.4 default
 
 // Parameters for Pose Estimation
 inline int icp_max_iterations = 50; // Maximum number of ICP iterations
@@ -48,7 +52,8 @@ inline PoseUpdateStabilityFactor stability_factor = PoseUpdateStabilityFactor::R
 // For now was manually set. The front, middle surface of the camera is 0 x, -60mm y, +31mm z, from the robot frame
 // The calibration of the camera means that it is aligned to the left lens. To get the center shift 47.5mm (cam baseline is 95mm)
 // The rotation is the same as the robot frame
-inline const Eigen::Matrix4f camera_to_TCP = (Eigen::Matrix4f() <<
+// (In the config file the translation is set with camera_to_TCP_x, camera_to_TCP_y and camera_to_TCP_z, in metres)
+inline Eigen::Matrix4f camera_to_TCP = (Eigen::Matrix4f() <<
   1, 0, 0, -0.0475,
   0, 1, 0, -0.06,
   0, 0, 1, 0.031,
@@ -58,6 +63,10 @@ inline const Eigen::Matrix4f camera_to_TCP = (Eigen::Matrix4f() <<
 // The offset for the end effector attachment and it's collision with different objects
 // Careful: this one is in mm, while most other distances in the project are in metres
 inline float spray_collision_offset = -57.0f;
+
+// Used when building the library: the angle (in degrees) to add to the facing angle of the object that is typed in, if
+// your camera is not quite aligned
+inline float object_angle_calibration_offset = -40.0f;
 
 //create an enum called home_position
 enum class HomePosition {

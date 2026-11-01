@@ -10,13 +10,23 @@
 
 using namespace pcl_pose;
 
-int main () {
-  const std::string object_name = "spray_bottle_tall";
+// Interactive tool for building the object library: asks for the angle the object is facing, captures it, and saves
+// the cloud and its VFH signature into ../lab_data/<object>/
+//
+// Options (all optional):
+//   --config <file>   YAML file with the parameters (default: ../config/default.yaml if it exists)
+//   --object <name>   the object to capture, which is also the name of its library folder (default: spray_bottle_tall)
+int main(int argc, char** argv) {
+  if (!loadConfigFromArguments(argc, argv)) {
+    return 1;
+  }
+  std::string object_name = "spray_bottle_tall";
+  pcl::console::parse_argument(argc, argv, "--object", object_name);
   const std::string output_folder = "../lab_data/" + object_name + "/";
   // Define the angle (in degrees) that the object is facing
   const std::regex float_regex(R"(^\d{1,3}(\.\d{1,6})?$)"); // Regex to match a float. Angle is between 0 and 360 and 6dp
   float object_facing_angle = 0.0f; // Defines the angle of the object in degrees. 0 degrees is facing the camera
-  constexpr float calibration_angle_offset = -40.0f; // Set this if your camera is not quite aligned
+  const float calibration_angle_offset = object_angle_calibration_offset; // Set this (in the config) if your camera is not quite aligned
   constexpr int desired_cluster_size = 1;
 
   // Declare any variables so they don't have to be redefined each time

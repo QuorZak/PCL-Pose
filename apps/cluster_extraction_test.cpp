@@ -9,8 +9,17 @@
 
 using namespace pcl_pose;
 
-int main() {
-  const std::string test_name = "spray_bottle_tall";
+// Takes one capture and saves every cluster found (with its VFH signature) into ../lab_data/test/
+//
+// Options (all optional):
+//   --config <file>   YAML file with the parameters (default: ../config/default.yaml if it exists)
+//   --object <name>   the name the saved files start with (default: spray_bottle_tall)
+int main(int argc, char** argv) {
+  if (!loadConfigFromArguments(argc, argv)) {
+    return 1;
+  }
+  std::string test_name = "spray_bottle_tall";
+  pcl::console::parse_argument(argc, argv, "--object", test_name);
   const std::string output_folder = "../lab_data/test/";
   //const std::string output_folder = "../lab_data/" + test_name + "/";
 

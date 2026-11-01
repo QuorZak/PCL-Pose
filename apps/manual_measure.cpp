@@ -2,15 +2,44 @@
 
 using namespace pcl_pose;
 
-int main() {
+// Measures the objects in the scene, finds the one that best matches the library, and prints where to move the robot.
+//
+// Options (all optional):
+//   --config <file>   YAML file with the parameters (default: ../config/default.yaml if it exists)
+//   --home <name>     where the camera is: elevated, front or any (default: any)
+//   --object <name>   the object being measured; "spray_bottle" gets the collision offset applied (default: spray_bottle)
+//   -m <folder>       folder with the reference library (default: model_directory in the config)
+//   -k <number>       how many nearest neighbours to look up (default: 6)
+//   --average         average the closest point over several frames (not tried on the robot yet)
+//   --calibrate       after each move, ask for the measured error and use it to adjust the next one
+//   --debug-clusters  print more about the cluster filtering
+//   --debug-target    show the target band in a viewer before each measurement
+int main(int argc, char** argv) {
+    if (!loadConfigFromArguments(argc, argv)) {
+        return 1;
+    }
+
     // Initial variables
-    auto home_position = HomePosition::ANY;
-    std::string input_name = "spray_bottle.pcd";
-    constexpr bool debugging_cluster_filtering = false;
-    constexpr bool debugging_target_acquire = false;
-    constexpr bool use_averaging = false; // averages the closest point over several frames (not tried on the robot yet)
-    constexpr bool do_calibration = false;
-    constexpr int k_val = 6;
+    std::string home_position_name = "any";
+    pcl::console::parse_argument(argc, argv, "--home", home_position_name);
+    HomePosition home_position = HomePosition::ANY;
+    if (home_position_name == "elevated") {
+        home_position = HomePosition::ELEVATED;
+    } else if (home_position_name == "front") {
+        home_position = HomePosition::FRONT;
+    } else if (home_position_name != "any") {
+        std::cerr << "Unknown --home value '" << home_position_name << "', use elevated, front or any" << std::endl;
+        return 1;
+    }
+    std::string object_name = "spray_bottle";
+    pcl::console::parse_argument(argc, argv, "--object", object_name);
+    pcl::console::parse_argument(argc, argv, "-m", model_directory);
+    int k_val = 6;
+    pcl::console::parse_argument(argc, argv, "-k", k_val);
+    const bool debugging_cluster_filtering = pcl::console::find_switch(argc, argv, "--debug-clusters");
+    const bool debugging_target_acquire = pcl::console::find_switch(argc, argv, "--debug-target");
+    const bool use_averaging = pcl::console::find_switch(argc, argv, "--average"); // averages the closest point over several frames (not tried on the robot yet)
+    const bool do_calibration = pcl::console::find_switch(argc, argv, "--calibrate");
     constexpr int closest_point_averaging_buffer_size = 10;
     Eigen::MatrixXf closest_point_buffer = Eigen::MatrixXf::Zero(3, closest_point_averaging_buffer_size);
     int closest_point_buffer_count = 0; // How many samples are in the buffer so far
@@ -252,7 +281,7 @@ int main() {
             std::cout << "x: " << adjusted_point(0) << " mm" << std::endl;
             std::cout << "y: " << adjusted_point(1) << " mm" << std::endl;
             std::cout << "z: " << adjusted_point(2) << " mm" << std::endl;
-            if (input_name == "spray_bottle.pcd")
+            if (object_name == "spray_bottle")
             {
                 adjusted_point(2) += spray_collision_offset; // Offset Z for the collision distance between the bottle and the manipulator
             }

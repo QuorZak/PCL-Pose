@@ -38,6 +38,7 @@
 #include <opencv2/imgproc/imgproc.hpp>
 
 #include "pcl_pose/parameters.h"
+#include "pcl_pose/config.h"
 #include "pcl_pose/camera.h"
 #include "pcl_pose/segmentation.h"
 #include "pcl_pose/vfh.h"
