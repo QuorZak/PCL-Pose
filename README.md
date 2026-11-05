@@ -1,7 +1,37 @@
 # PCL-Pose
 A series of tools and functions for object recognition and 6DOF pose estimation using [PCL](http://pointclouds.org/), an Intel RealSense D455 depth camera and a robot arm. It was developed for my Master's research report, [Improving Robotic Perception by Refining 6D Object Pose Estimation using Push Based Manipulation](docs/PCL-Pose_Research_Report_2024-11-11.pdf) (University of Auckland, 2024), where the pose and approach point it calculates are used to push objects with a UR5e cobot.
 
-The approach is PCL's cluster recognition with VFH (viewpoint feature histogram) descriptors: planes are removed from the depth image, the remaining points are clustered, each cluster's VFH is matched against a library of known objects, and the best match is turned into a target point for the arm. The VFH documentation can be found in the PCL [tutorial](https://pcl.readthedocs.io/projects/tutorials/en/master/vfh_recognition.html). The starting point for this project was the official PCL documentation as well as the [previous work](https://github.com/dkebude/PCL-object-recognition) of Doğancan Kebude.
+The approach is PCL's cluster recognition with VFH (viewpoint feature histogram) descriptors. The VFH documentation can be found in the PCL [tutorial](https://pcl.readthedocs.io/projects/tutorials/en/master/vfh_recognition.html). The starting point for this project was the official PCL documentation as well as the [previous work](https://github.com/dkebude/PCL-object-recognition) of Doğancan Kebude.
+
+## How it works
+```
+RealSense D455 depth frames
+  |  depth filters (threshold, temporal), crop to the centre of the image            camera
+  v
+point cloud
+  |  voxel grid down-sampling (leaf size), RANSAC plane removal (floor, table)       segmentation
+  |  Euclidean clustering: one cluster per object in the scene
+  v
+VFH signature of each cluster
+  |  nearest-neighbour search (FLANN, chi-square distance) against lab_data/         vfh
+  v
+best matching object in the scene
+  |  target band on the object, closest point, camera -> robot TCP transform,        manual_measure
+  |  camera tilt (RX) from the accelerometer
+  v
+x, y, z (mm) and RX to move the robot to the object
+```
+
+## Hardware
+- Intel RealSense D455, run at 848x480 and 15 fps, with the accelerometer used to find which way is up
+- Universal Robots UR5e cobot. The program prints the move to make with respect to the tool (TCP) frame
+- An end-effector baseplate for the camera (CAD files in `hardware/`)
+
+## Results
+From the report (the final tests used a leaf size of 4 mm):
+- The pose estimates were within millimetres of the actual position: typically within 5 mm on the x-axis and 2 mm on the z-axis, with the depth (z) readings off by 3 to 4 mm at most.
+- The x-axis varied the most, mainly because of the leaf size, which sets the spacing of the points.
+- The robot TCP could move into a position to push the object using the vector from the pose estimate.
 
 ## Dependencies
 ### Major
@@ -23,13 +53,13 @@ mkdir build && cd build
 cmake ..
 make -j$(nproc)
 ```
-Run the programs from inside the `build` folder, because the default data paths are relative (`../lab_data/...`). The build type defaults to Release, because PCL and Eigen are very slow without optimisation.
+Run the programs from inside the `build` folder, because the default data paths are relative (`../lab_data/...`). The build type defaults to Release, because PCL and Eigen are very slow without optimisation. The experimental `pose` program is not part of the default build: use `make pose`.
 
 ## Repository contents
 - `include/` and `src/` - The pose library (`pose_core`), shared by the programs, described below.
 - `apps/` - The programs, described below.
 - `config/` - YAML parameter files (`default.yaml` has every key with its default value).
-- `lab_data/` - The object library: point clouds (`<object>_NNNN.pcd`) with their paired VFH signatures (`<object>_NNNN_vfh.pcd`), one folder per object.
+- `lab_data/` - The object library: point clouds (`<object>_NNNN.pcd`) with their paired VFH signatures (`<object>_NNNN_vfh.pcd`), one folder per object. See `lab_data/LIBRARY_NOTES.md` for what is in it.
 - `f_markers/` - ArUco marker images created by `generate_markers`.
 - `docs/` - The research report.
 - `hardware/` - CAD files (Inventor `.ipt` and `.stl`) for the D455 end-effector baseplate.
@@ -53,18 +83,40 @@ The programs in the `apps` folder:
 - `generate_markers.cpp` (`generate_markers`) - Writes the ArUco marker images into `f_markers/`.
 - `rebuild_vfh.cpp` (`rebuild_vfh`) - Checks that every cloud in the object library is centred on its centroid, and with `--apply` centres them and recomputes the paired VFH signatures. No camera needed. See `lab_data/LIBRARY_NOTES.md`.
 
-Files that need work to be run reliably, or are not currently working:
-- `main.cpp` (`pose`, not part of the default build: use `make pose`) - This file was intended to be the main file for the project. It attempts to find the 6D pose of the object by comparing the point cloud to the library of point clouds. The library is supposed to contain point clouds with the Z axis pointing forward, so the object must be rotated to match the library. Ensure you have a reliable library including defined x,y,z axis with respect to object pose.
+Experimental, and not in the default build:
+- `main.cpp` (`pose`, use `make pose`) - This file was intended to be the main file for the project. It attempts to find the 6D pose of the object by aligning the matching library cloud to the matched cluster with ICP, and draws the coordinate system on the colour image. The library is supposed to contain point clouds with the Z axis pointing forward, so the object must be rotated to match the library. Ensure you have a reliable library including defined x,y,z axis with respect to object pose.
 
 ## Configuration
 The tunable values (camera stream, cloud filtering, ICP, the camera-to-TCP offset, the library location...) are described in `include/pcl_pose/parameters.h` and can be changed without recompiling from a YAML file. `config/default.yaml` lists every key with its default value, which suits the setup in my lab. Many of them are hard-coded to match the equipment I have available, so you will need to adjust them to match your own setup: copy the file, edit it, and run a program with `--config <your file>`. When no `--config` is given, a program started from the `build` folder loads `../config/default.yaml` if it exists, and keys that are missing keep their default value.
 
 The programs also take command-line flags instead of editing the code (`--object`, `-m`, `-k`, `--home`, `--average`, `--calibrate`, `--debug-clusters`, `--debug-target`). Each program lists its own flags in the comment above `main()`.
+
 ## Setting up your own library
-To set up your own library of point clouds, use `cluster_extraction.cpp` (the `extraction` program). Every cloud in the library should be centred on its centroid (see `lab_data/LIBRARY_NOTES.md`; `rebuild_vfh` checks this). Set `object_name` in the file, run it, and for each capture type the angle the object is facing. It saves each cluster and its paired VFH into `lab_data/<object_name>/`. Creating a folder for each object is recommended.
+To set up your own library of point clouds, use `cluster_extraction.cpp` (the `extraction` program). Every cloud in the library should be centred on its centroid (see `lab_data/LIBRARY_NOTES.md`; `rebuild_vfh` checks this). Run it with `--object <name>`, and for each capture type the angle the object is facing. It saves each cluster and its paired VFH into `lab_data/<name>/`. Creating a folder for each object is recommended.
 
 ## Running the manual measure
-Make sure you have very accurately set the parameters in the config file (see Configuration) to match your setup. You can then run the `manual_measure` program. It will measure the objects in the scene, find the object that is most similar to the known library of point clouds, and calculate the parameters for a robot arm to grasp the object. It is important that you point the program to the correct library location (`model_directory` in the config file, or `-m <folder>`) as it attempts to find the object in the scene that best matches a known object. You should see the output in the terminal.
+Make sure you have very accurately set the parameters in the config file (see Configuration) to match your setup. You can then run the `manual_measure` program, for example `./manual_measure --home elevated`. It will measure the objects in the scene, find the object that is most similar to the known library of point clouds, and calculate the parameters for a robot arm to grasp the object. It is important that you point the program to the correct library location (`model_directory` in the config file, or `-m <folder>`) as it attempts to find the object in the scene that best matches a known object. You should see the output in the terminal.
+
+## Known limitations
+From the report:
+- Reflective, dark, or harshly lit objects are hard to identify.
+- There is a practical minimum leaf size: below it, noise makes extracting the object very difficult without a better cluster extraction.
+- The minimum detection range is about 355 mm from the camera. Shallow camera angles add noise on perpendicular surfaces, and there is a slight bias towards objects in front of, or to the left of, the left-hand imager.
+
+In the code:
+- The library is a mix of centred and uncentred clouds, and the live programs do not centre the scene clusters, so the matching convention needs settling (`lab_data/LIBRARY_NOTES.md`).
+- The averaging (`--average`) and the calibration adjustment (`--calibrate`) have not been tried on the robot.
+- `pose` is experimental, and it reads colour frames from the same pipeline as its processing thread, so each only gets some of the framesets.
+- There are no automated tests, and it has only been built on Ubuntu with a RealSense camera attached.
+
+## Future work
+From the report:
+- Average the target point over several samples to reduce the variation.
+- Add a ROS wrapper so the code can send the move to the UR5e, and keep `manual_measure` running to wait for the user's input.
+- Add touch sensors on the end effector for feedback while the arm moves, using the pose manager for the sensor fusion.
+- Refine the cluster extraction, and set the coordinate system of the pose in a more robust way than the centroid.
+- Calculate a better approach vector that uses the 6D pose more.
+- Train more objects, add a second RealSense camera, and test in cluttered scenes and different lighting.
 
 ## Licence
 Free for noncommercial use, including personal use, research and education, under the [PolyForm Noncommercial License 1.0.0](LICENSE). For commercial use, please contact me for permission at zakquor@gmail.com.
