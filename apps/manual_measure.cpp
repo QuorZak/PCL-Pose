@@ -7,7 +7,6 @@ using namespace pcl_pose;
 // Options (all optional):
 //   --config <file>   YAML file with the parameters (default: ../config/default.yaml if it exists)
 //   --home <name>     where the camera is: elevated, front or any (default: any)
-//   --object <name>   the object being measured; "spray_bottle" gets the collision offset applied (default: spray_bottle)
 //   -m <folder>       folder with the reference library (default: model_directory in the config)
 //   -k <number>       how many nearest neighbours to look up (default: 6)
 //   --average         average the closest point over several frames (not tried on the robot yet)
@@ -31,8 +30,6 @@ int main(int argc, char** argv) {
         std::cerr << "Unknown --home value '" << home_position_name << "', use elevated, front or any" << std::endl;
         return 1;
     }
-    std::string object_name = "spray_bottle";
-    pcl::console::parse_argument(argc, argv, "--object", object_name);
     pcl::console::parse_argument(argc, argv, "-m", model_directory);
     int k_val = 6;
     pcl::console::parse_argument(argc, argv, "-k", k_val);
@@ -215,9 +212,13 @@ int main(int argc, char** argv) {
             std::cout << "x: " << adjusted_point(0) << " mm" << std::endl;
             std::cout << "y: " << adjusted_point(1) << " mm" << std::endl;
             std::cout << "z: " << adjusted_point(2) << " mm" << std::endl;
-            if (object_name == "spray_bottle")
+            // The matched library model says what the object is: a spray bottle gets the offset for the collision
+            // distance between the bottle and the manipulator (in Z)
+            if (isSprayBottleModel(best_model_file))
             {
-                adjusted_point(2) += spray_collision_offset; // Offset Z for the collision distance between the bottle and the manipulator
+                adjusted_point(2) += spray_collision_offset;
+                std::cout << "Spray bottle matched: applied the collision offset of " << spray_collision_offset
+                          << " mm in z" << std::endl;
             }
 
             // Prompt the user to move the robot to the closest point

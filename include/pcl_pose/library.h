@@ -22,6 +22,10 @@ std::string vfhFileForCloud(const std::string& cloud_file);
 // The other way round: <name>_vfh.pcd -> <name>.pcd. A name that does not end in _vfh.pcd is returned as it is.
 std::string cloudFileForVfh(const std::string& vfh_file);
 
+// True if a library file is a spray bottle, which needs the spray_collision_offset: its file name (not the folders it
+// is in) contains "spray_bottle", as the files saved by extraction --object spray_bottle_... do.
+bool isSprayBottleModel(const std::string& model_file);
+
 // Applies a rigid transform to the cloud and also to its viewpoint (sensor_origin_ and sensor_orientation_, where the
 // camera was), so that the VFH signature of the moved cloud stays the same as the one the camera would see.
 void transformCloudAndViewpoint(pcl::PointCloud<pcl::PointXYZ>& cloud, const Eigen::Matrix4f& transform);

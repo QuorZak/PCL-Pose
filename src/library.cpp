@@ -51,6 +51,10 @@ std::string cloudFileForVfh(const std::string& vfh_file) {
   return vfh_file.substr(0, vfh_file.size() - vfh_ending.size()) + ".pcd";
 }
 
+bool isSprayBottleModel(const std::string& model_file) {
+  return std::filesystem::path(model_file).filename().string().find("spray_bottle") != std::string::npos;
+}
+
 void transformCloudAndViewpoint(pcl::PointCloud<pcl::PointXYZ>& cloud, const Eigen::Matrix4f& transform) {
   pcl::transformPointCloud(cloud, cloud, transform);
   const Eigen::Matrix3f rotation = transform.block<3, 3>(0, 0);

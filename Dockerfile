@@ -16,7 +16,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential cmake git pkg-config ca-certificates \
-        libpcl-dev libopencv-dev libflann-dev libboost-all-dev libeigen3-dev libgtest-dev \
+        libpcl-dev libopencv-dev libflann-dev libjsoncpp-dev libboost-all-dev libeigen3-dev libgtest-dev \
         libusb-1.0-0-dev libssl-dev libudev-dev \
     && rm -rf /var/lib/apt/lists/*
 

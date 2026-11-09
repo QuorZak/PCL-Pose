@@ -130,7 +130,7 @@ To get a scene, capture one with the camera while it looks at the objects, then 
 Scenes are several MB each, so `/scenes/` is in `.gitignore`.
 
 ## Running the manual measure
-Make sure you have very accurately set the parameters in the config file (see Configuration) to match your setup. You can then run the `manual_measure` program, for example `./manual_measure --home elevated`. It will measure the objects in the scene, find the object that is most similar to the known library of point clouds, and calculate the parameters for a robot arm to grasp the object. It is important that you point the program to the correct library location (`model_directory` in the config file, or `-m <folder>`) as it attempts to find the object in the scene that best matches a known object. You should see the output in the terminal.
+Make sure you have very accurately set the parameters in the config file (see Configuration) to match your setup. You can then run the `manual_measure` program, for example `./manual_measure --home elevated`. It will measure the objects in the scene, find the object that is most similar to the known library of point clouds, and calculate the parameters for a robot arm to grasp the object. It is important that you point the program to the correct library location (`model_directory` in the config file, or `-m <folder>`) as it attempts to find the object in the scene that best matches a known object. When the best match is a spray bottle (its library file name contains `spray_bottle`), the collision offset `spray_collision_offset` is applied to the z move automatically. You should see the output in the terminal.
 
 ## Known limitations
 From the report:

@@ -9,6 +9,26 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
 endif()
 
+# VTK (which PCL loads) refers to a JsonCpp::JsonCpp target in some distributions (e.g. VTK 9.3 on Debian 13) without
+# defining it, so CMake stops with "The link interface of target VTK::jsoncpp contains JsonCpp::JsonCpp but the target
+# was not found". Define it before PCL is found: from jsoncpp's own CMake package if there is one, otherwise by hand.
+find_package(jsoncpp CONFIG QUIET)
+if(NOT TARGET JsonCpp::JsonCpp)
+  if(TARGET jsoncpp_lib)
+    add_library(JsonCpp::JsonCpp INTERFACE IMPORTED)
+    set_target_properties(JsonCpp::JsonCpp PROPERTIES INTERFACE_LINK_LIBRARIES jsoncpp_lib)
+  else()
+    find_library(JSONCPP_LIBRARY NAMES jsoncpp)
+    find_path(JSONCPP_INCLUDE_DIR json/json.h PATH_SUFFIXES jsoncpp)
+    if(JSONCPP_LIBRARY AND JSONCPP_INCLUDE_DIR)
+      add_library(JsonCpp::JsonCpp UNKNOWN IMPORTED)
+      set_target_properties(JsonCpp::JsonCpp PROPERTIES
+        IMPORTED_LOCATION "${JSONCPP_LIBRARY}"
+        INTERFACE_INCLUDE_DIRECTORIES "${JSONCPP_INCLUDE_DIR}")
+    endif()
+  endif()
+endif()
+
 # PCL
 find_package(PCL 1.8 REQUIRED)
 include_directories(${PCL_INCLUDE_DIRS})

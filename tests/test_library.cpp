@@ -32,6 +32,15 @@ TEST(Library, ANameThatIsNotASignatureFileIsLeftAlone) {
   EXPECT_EQ(cloudFileForVfh(""), "");
 }
 
+TEST(Library, SprayBottlesAreRecognisedByTheirFileName) {
+  EXPECT_TRUE(isSprayBottleModel("../lab_data/spray_bottle_tall/spray_bottle_tall_0003_vfh.pcd"));
+  EXPECT_TRUE(isSprayBottleModel("spray_bottle_0001.pcd"));
+  EXPECT_FALSE(isSprayBottleModel("../lab_data/mustard_small/mustard_small_0001_vfh.pcd"));
+  // Only the file name counts, not the folder it is in
+  EXPECT_FALSE(isSprayBottleModel("../lab_data/spray_bottle_tall/mustard_small_0001_vfh.pcd"));
+  EXPECT_FALSE(isSprayBottleModel(""));
+}
+
 TEST(Library, TheCentroidIsTheAverageOfThePoints) {
   const Eigen::Vector4f centroid = cloudCentroid(makeCloud());
   EXPECT_NEAR(centroid[0], 2.0f, 1e-5f);
