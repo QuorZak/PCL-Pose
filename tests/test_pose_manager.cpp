@@ -119,5 +119,6 @@ TEST_F(PoseManagerTest, CalibrationOffsetsAddUp) {
   EXPECT_NEAR(adjuster(1, 3), 0.004f, 1e-6f);
   EXPECT_NEAR(adjuster(2, 3), 0.006f, 1e-6f);
   // the rotation part is untouched
-  EXPECT_TRUE(adjuster.block<3, 3>(0, 0).isApprox(Eigen::Matrix3f::Identity()));
+  // (extra brackets: the comma in block<3, 3> would otherwise split the macro's argument)
+  EXPECT_TRUE((adjuster.block<3, 3>(0, 0).isApprox(Eigen::Matrix3f::Identity())));
 }
