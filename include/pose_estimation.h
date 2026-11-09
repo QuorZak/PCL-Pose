@@ -20,7 +20,6 @@
 #include <pcl/registration/icp.h>
 
 #include <flann/flann.h>
-#include <flann/io/hdf5.h>
 #include <iostream>
 #include <iomanip>
 #include <sstream>
@@ -44,5 +43,7 @@
 #include "pcl_pose/vfh.h"
 #include "pcl_pose/files.h"
 #include "pcl_pose/library.h"
+#include "pcl_pose/target.h"
+#include "pcl_pose/vfh_library.h"
 #include "pcl_pose/viewer.h"
 #include "pcl_pose/pose.h"

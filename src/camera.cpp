@@ -53,10 +53,6 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr depthFrameToPointCloud(const rs2::depth_fram
   const auto stream_profile = points.get_profile().as<rs2::video_stream_profile>();
   const int width = stream_profile.width();
   const int height = stream_profile.height();
-  cloud->width = width;
-  cloud->height = height;
-  cloud->is_dense = false;
-  cloud->points.resize(points.size());
 
   // Initialise start and stop to default values
   int x_start = 0, x_stop = width, y_start = 0, y_stop = height;
@@ -72,6 +68,13 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr depthFrameToPointCloud(const rs2::depth_fram
     y_stop = y_stop_crop;
   }
 
+  // The cloud holds only the (cropped) region, so that width x height matches the number of points. Sizing it for the
+  // whole image used to leave the rest as points at (0,0,0), and PCL refuses to read a saved file like that.
+  cloud->width = x_stop - x_start;
+  cloud->height = y_stop - y_start;
+  cloud->is_dense = false;
+  cloud->points.resize(static_cast<std::size_t>(cloud->width) * cloud->height);
+
   // Extract the points
   const auto vertices = points.get_vertices();
   int i = 0;
@@ -83,11 +86,6 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr depthFrameToPointCloud(const rs2::depth_fram
       cloud->points[i].z = vertices[index].z;
     }
   }
-  // set the size of the point cloud
-  cloud->width = x_stop - x_start;
-  cloud->height = y_stop - y_start;
-  cloud->is_dense = false;
-
   if (debugging) {
     std::cout << "PointCloud captured from Realsense camera has: " << cloud->size() << " data points." << std::endl;
   }

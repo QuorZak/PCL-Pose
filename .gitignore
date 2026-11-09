@@ -16,6 +16,9 @@ ehthumbs.db
 # Logs
 *.log
 
+# Scenes saved by capture_scene for replay (a scene is several MB, remove this line to keep some in git)
+/scenes/
+
 # Scratch captures (created by extraction_test, not part of the reference library)
 /lab_data/test/
 /pose_estimation_cluster/

@@ -11,32 +11,18 @@ int main(int argc, char** argv) {
     int k = 6;
     auto thresh = DBL_MAX;
 
-    std::vector<vfh_model> models;
-    flann::Matrix<int> k_indices;
-    flann::Matrix<float> k_distances;
-
     pcl::console::parse_argument(argc, argv, "-i", input_name);
     pcl::console::parse_argument(argc, argv, "-m", model_directory);
     pcl::console::parse_argument(argc, argv, "-k", k);
     pcl::console::parse_argument(argc, argv, "-t", thresh);
 
-    // Load the VFH model data and store the names of the models in the order they are in the index
+    // Load the VFH model library and build its search index
     // (before starting the camera and the thread, so there is nothing to shut down if the library is empty)
-    std::vector<std::string> model_files;
-    load_vfh_model_data(model_directory, models, model_files);
-    if (models.empty()) {
+    const VfhLibrary library(model_directory);
+    if (library.empty()) {
         std::cerr << "No VFH models found in " << model_directory << std::endl;
         return 1;
     }
-
-    std::unique_ptr<float[]> data_ptr(new float[models.size() * models[0].second.size()]);
-    flann::Matrix data(data_ptr.get(), models.size(), models[0].second.size());
-    for (size_t i = 0; i < data.rows; ++i)
-        for (size_t j = 0; j < data.cols; ++j)
-            data[i][j] = models[i].second[j];
-
-    flann::Index<flann::ChiSquareDistance<float>> index(data, flann::LinearIndexParams());
-    index.buildIndex();
 
     rs2::pipeline pipeline;
     rs2::config cfg;
@@ -47,6 +33,17 @@ int main(int argc, char** argv) {
     auto profile = pipeline.get_active_profile();
     auto video_stream = profile.get_stream(RS2_STREAM_COLOR).as<rs2::video_stream_profile>();
     auto intrinsics = video_stream.get_intrinsics();
+
+    // The pose is in the depth camera's frame, but it is drawn on the colour image, which comes from a different
+    // imager. This moves the pose from the depth frame into the colour frame before it is projected.
+    const rs2_extrinsics depth_to_color_extrinsics = profile.get_stream(RS2_STREAM_DEPTH).get_extrinsics_to(video_stream);
+    Eigen::Matrix4f depth_to_color = Eigen::Matrix4f::Identity();
+    for (int row = 0; row < 3; ++row) {
+        for (int col = 0; col < 3; ++col) {
+            depth_to_color(row, col) = depth_to_color_extrinsics.rotation[col * 3 + row]; // stored column-major
+        }
+        depth_to_color(row, 3) = depth_to_color_extrinsics.translation[row];
+    }
 
     for (int i = 0; i < 100; i++) {
         auto frames = pipeline.wait_for_frames();
@@ -83,7 +80,7 @@ int main(int argc, char** argv) {
 
         pcl::PointCloud<pcl::PointXYZ>::Ptr best_cluster(new pcl::PointCloud<pcl::PointXYZ>);
         float best_distance = std::numeric_limits<float>::max();
-        int best_index = -1;
+        std::string best_model_file; // Stays empty until a cluster matches a model
 
         for (const auto& cluster : cluster_indices_local) {
             pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_cluster(new pcl::PointCloud<pcl::PointXYZ>);
@@ -96,19 +93,18 @@ int main(int argc, char** argv) {
 
             vfh_model query_model;
             query_model.second.assign(signature.points[0].histogram, signature.points[0].histogram + 308);
-            nearestKSearch(index, query_model, k, k_indices, k_distances);
+            const std::vector<VfhLibrary::Match> matches = library.nearest(query_model, k);
 
-            if (k_distances[0][0] < best_distance) {
-                best_distance = k_distances[0][0];
-                best_index = k_indices[0][0];
+            if (!matches.empty() && matches[0].distance < best_distance) {
+                best_distance = matches[0].distance;
+                best_model_file = matches[0].file;
                 *best_cluster = *cloud_cluster;
             }
         }
 
-        if (best_index != -1) {
+        if (!best_model_file.empty()) {
             // Load the library cloud that belongs to the best matching VFH (the cloud file has the same name without _vfh)
-            std::string model_cloud_file = model_files[best_index];
-            model_cloud_file = model_cloud_file.substr(0, model_cloud_file.find("_vfh.pcd")) + ".pcd";
+            const std::string model_cloud_file = cloudFileForVfh(best_model_file);
             pcl::PointCloud<pcl::PointXYZ>::Ptr model_cloud(new pcl::PointCloud<pcl::PointXYZ>);
             if (pcl::io::loadPCDFile(model_cloud_file, *model_cloud) == -1) {
                 std::cerr << "Couldn't read file " << model_cloud_file << std::endl;
@@ -127,7 +123,7 @@ int main(int argc, char** argv) {
             rs2::frame color_frame = frames.get_color_frame();
             cv::Mat frame(cv::Size(cam_res_width, cam_res_height), CV_8UC3, const_cast<void*>(color_frame.get_data()),
                 cv::Mat::AUTO_STEP);
-            displayCoordinateSystem(stored_pose, frame, intrinsics);
+            displayCoordinateSystem(depth_to_color * stored_pose, frame, intrinsics);
             cv::imshow("Coordinate System", frame);
             if (cv::waitKey(1) >= 0) {
                 break;

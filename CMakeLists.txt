@@ -24,8 +24,6 @@ find_package(OpenCV 4.7 REQUIRED)
 include_directories(${OpenCV_INCLUDE_DIRS})
 
 # Others
-find_package(HDF5)
-include_directories(SYSTEM ${HDF5_INCLUDE_DIR})
 find_package(FLANN)
 include_directories(${FLANN_INCLUDE_DIRS})
 
@@ -39,10 +37,12 @@ add_library(pose_core STATIC
   src/vfh.cpp
   src/files.cpp
   src/library.cpp
+  src/target.cpp
+  src/vfh_library.cpp
   src/viewer.cpp
   src/pose.cpp)
 target_include_directories(pose_core PUBLIC include)
-target_link_libraries(pose_core PUBLIC ${PCL_LIBRARIES} realsense2 ${OpenCV_LIBS} ${FLANN_LIBRARIES} ${HDF5_LIBRARIES} ${Boost_LIBRARIES})
+target_link_libraries(pose_core PUBLIC ${PCL_LIBRARIES} realsense2 ${OpenCV_LIBS} ${FLANN_LIBRARIES} ${Boost_LIBRARIES})
 
 # The programs
 function(add_pose_app name source)
@@ -59,6 +59,10 @@ add_pose_app(manual_measure apps/manual_measure.cpp)
 add_pose_app(extraction apps/cluster_extraction.cpp)
 # Cluster Extraction test executable (single capture into lab_data/test)
 add_pose_app(extraction_test apps/cluster_extraction_test.cpp)
+# Offline replay: runs the whole recognition pipeline on a saved scene, no camera needed
+add_pose_app(replay apps/replay.cpp)
+# Captures one scene from the camera and saves it for replay
+add_pose_app(capture_scene apps/capture_scene.cpp)
 # Library tool: checks the object library, and with --apply centres the clouds and recomputes the VFH signatures
 add_pose_app(rebuild_vfh apps/rebuild_vfh.cpp)
 # Scratch tools executable (a playground for trying out the functions, not an automated test suite)
@@ -71,3 +75,33 @@ target_link_libraries(marker realsense2 ${OpenCV_LIBS})
 # Marker generator executable (writes the ArUco marker images into f_markers)
 add_executable(generate_markers apps/generate_markers.cpp)
 target_link_libraries(generate_markers realsense2 ${OpenCV_LIBS})
+
+# The unit tests (need GoogleTest, e.g. sudo apt install libgtest-dev). Run them with: ctest --output-on-failure
+option(POSE_BUILD_TESTS "Build the unit tests" ON)
+if(POSE_BUILD_TESTS)
+  find_package(GTest)
+  if(GTest_FOUND OR GTEST_FOUND)
+    enable_testing()
+    if(TARGET GTest::gtest_main)
+      set(POSE_GTEST_MAIN GTest::gtest_main)
+    else()
+      set(POSE_GTEST_MAIN GTest::Main)
+    endif()
+    add_executable(pose_tests
+      tests/test_camera.cpp
+      tests/test_config.cpp
+      tests/test_files.cpp
+      tests/test_library.cpp
+      tests/test_pose_manager.cpp
+      tests/test_segmentation.cpp
+      tests/test_target.cpp
+      tests/test_vfh.cpp
+      tests/test_vfh_library.cpp)
+    target_link_libraries(pose_tests pose_core ${POSE_GTEST_MAIN})
+    # The tests read the library and the config in the repository
+    target_compile_definitions(pose_tests PRIVATE POSE_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+    add_test(NAME pose_tests COMMAND pose_tests)
+  else()
+    message(STATUS "GoogleTest not found, so the unit tests are not built (sudo apt install libgtest-dev)")
+  endif()
+endif()

@@ -2,11 +2,12 @@
 # and PCL 1.15. Debian has no librealsense package, so it is built from source with the RSUSB backend, which needs no
 # kernel modules and is enough to compile and link the programs.
 #
-#   docker build -t pcl-pose .                      # builds the dependencies, then compiles all the programs
+#   docker build -t pcl-pose .                      # builds the dependencies, compiles all the programs, runs the tests
 #   docker build --target deps -t pcl-pose-deps .   # only the dependencies, e.g. for a development shell:
 #   docker run --rm -it -v "$PWD":/src -w /src pcl-pose-deps bash
 #
-# This image only compiles the code. Running the programs needs a RealSense camera on the host, which is not set up here.
+# This image only compiles the code and runs the unit tests. Running the programs needs a RealSense camera on the host,
+# which is not set up here.
 
 FROM debian:trixie AS deps
 
@@ -15,7 +16,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential cmake git pkg-config ca-certificates \
-        libpcl-dev libopencv-dev libflann-dev libhdf5-dev libboost-all-dev libeigen3-dev \
+        libpcl-dev libopencv-dev libflann-dev libboost-all-dev libeigen3-dev libgtest-dev \
         libusb-1.0-0-dev libssl-dev libudev-dev \
     && rm -rf /var/lib/apt/lists/*
 
@@ -36,8 +37,14 @@ COPY include ./include
 COPY src ./src
 COPY apps ./apps
 COPY config ./config
+COPY tests ./tests
+# The tests read the library that is committed in lab_data
+COPY lab_data ./lab_data
 
-# The default programs, then the experimental pose program that is left out of the default build
+# The default programs and the tests, then the experimental pose program that is left out of the default build
 RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
     && cmake --build build --parallel "$(nproc)" \
     && cmake --build build --parallel "$(nproc)" --target pose
+
+# Run the unit tests (no camera is needed)
+RUN ctest --test-dir build --output-on-failure

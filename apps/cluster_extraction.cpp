@@ -54,10 +54,26 @@ int main(int argc, char** argv) {
   }
   std::cout << "Ready to capture point cloud. " << std::endl;
 
-  // Get the camera orientation data
-  rs2::frameset frames = pipe.wait_for_frames();
-  rs2::motion_frame accel_frame = frames.first_or_default(RS2_STREAM_ACCEL);
-  rs2_vector accel_data = accel_frame.get_motion_data();
+  // The camera orientation (accelerometer). The accelerometer and the depth camera do not always arrive in the same
+  // frameset, so the latest reading is kept, and updated from every frameset that has one.
+  rs2_vector accel_data{};
+  bool have_accel = false;
+  const auto update_accel = [&accel_data, &have_accel](const rs2::frameset& frameset) {
+    if (const rs2::frame accel_frame = frameset.first_or_default(RS2_STREAM_ACCEL)) {
+      accel_data = accel_frame.as<rs2::motion_frame>().get_motion_data();
+      have_accel = true;
+    }
+  };
+  rs2::frameset frames;
+  for (int attempt = 0; attempt < 100 && !have_accel; attempt++) {
+    frames = pipe.wait_for_frames();
+    update_accel(frames);
+  }
+  if (!have_accel) {
+    std::cerr << "No accelerometer data from the camera" << std::endl;
+    pipe.stop();
+    return 1;
+  }
 
   while (true) {
     std::cout << "Type in the angle of the object in degrees and press enter"<< std::endl;
@@ -89,9 +105,13 @@ int main(int argc, char** argv) {
     std::vector<pcl::PointIndices> cluster_indices;
     while (cluster_indices.size() != desired_cluster_size)
     {
-      // Capture a frame
+      // Capture a frame (and keep the accelerometer reading up to date, in case the camera has been moved)
       frames = pipe.wait_for_frames();
-      rs2::frame depth = frames.get_depth_frame();
+      update_accel(frames);
+      rs2::depth_frame depth = frames.get_depth_frame();
+      if (!depth) {
+        continue; // This frameset only had motion data
+      }
       rs2::frame filtered_depth = apply_depth_post_processing_filters(depth);
 
       // Convert the depth frame to a PCL point cloud
@@ -123,12 +143,16 @@ int main(int argc, char** argv) {
         cloud_cluster->width = cloud_cluster->size();
         cloud_cluster->height = 1;
         cloud_cluster->is_dense = true;
+        // The cluster is in the camera frame, so the camera is at the origin. The viewpoint is moved along with the
+        // cloud below, and saved in the file, so that the VFH signature is the one the camera sees.
+        cloud_cluster->sensor_origin_ = Eigen::Vector4f::Zero();
+        cloud_cluster->sensor_orientation_ = Eigen::Quaternionf::Identity();
 
-        // Set the front direction of the point cloud
+        // Set the front direction of the point cloud (this also centres it)
         getPointCloudOriginAndAxes(cloud_cluster, object_pose, object_facing_angle, calibration_angle_offset, accel_data);
 
-        // Transform the point cloud using the new pose
-        transformPointCloud(*cloud_cluster, *cloud_cluster, object_pose);
+        // Transform the point cloud (and its viewpoint) using the new pose
+        transformCloudAndViewpoint(*cloud_cluster, object_pose);
 
         // Save the point cloud
         std::cout << "PointCloud representing the Cluster: " << cloud_cluster->size() << " data points." << std::endl;

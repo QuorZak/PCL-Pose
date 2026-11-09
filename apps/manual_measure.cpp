@@ -44,27 +44,13 @@ int main(int argc, char** argv) {
     Eigen::MatrixXf closest_point_buffer = Eigen::MatrixXf::Zero(3, closest_point_averaging_buffer_size);
     int closest_point_buffer_count = 0; // How many samples are in the buffer so far
 
-    std::vector<vfh_model> models;
-    std::vector<std::string> model_files; // Vector to store file names
-    flann::Matrix<int> k_indices;
-    flann::Matrix<float> k_distances;
-
-    // Load the VFH model data and store the names of the models in the order they are in the index
+    // Load the VFH model library and build its search index
     // (before starting the camera and the thread, so there is nothing to shut down if the library is empty)
-    load_vfh_model_data(model_directory, models, model_files);
-    if (models.empty()) {
+    const VfhLibrary library(model_directory);
+    if (library.empty()) {
         std::cerr << "No VFH models found in " << model_directory << std::endl;
         return 1;
     }
-    // Convert the models to FLANN format
-    std::unique_ptr<float[]> data_ptr(new float[models.size() * models[0].second.size()]);
-    flann::Matrix data(data_ptr.get(), models.size(), models[0].second.size());
-    for (size_t i = 0; i < data.rows; ++i)
-        for (size_t j = 0; j < data.cols; ++j)
-            data[i][j] = models[i].second[j];
-    // Build the FLANN index. This is the data structure that will be used to search for the best match
-    flann::Index<flann::ChiSquareDistance<float>> index(data, flann::LinearIndexParams());
-    index.buildIndex();
     std::cout << "VFH model data loaded and index built" << std::endl;
 
     // Start the Realsense pipeline
@@ -123,7 +109,7 @@ int main(int argc, char** argv) {
         // Initialise the best cluster variables
         pcl::PointCloud<pcl::PointXYZ>::Ptr best_cluster(new pcl::PointCloud<pcl::PointXYZ>);
         float best_distance = std::numeric_limits<float>::max();
-        int best_index = -1;
+        std::string best_model_file; // Stays empty until a cluster matches a model
 
         // Iterate through all the clusters and find the best match of a scene cluster to a stored model via VFH signatures
         for (const auto& cluster : cluster_indices_local) {
@@ -135,18 +121,16 @@ int main(int argc, char** argv) {
             estimate_VFH(cloud_cluster, signature);
             vfh_model query_model;
             query_model.second.assign(signature.points[0].histogram, signature.points[0].histogram + 308);
-            nearestKSearch(index, query_model, k_val, k_indices, k_distances);
+            const std::vector<VfhLibrary::Match> matches = library.nearest(query_model, k_val);
             // Store the best match
-            if (k_distances[0][0] < best_distance) {
-                best_distance = k_distances[0][0];
-                best_index = k_indices[0][0];
+            if (!matches.empty() && matches[0].distance < best_distance) {
+                best_distance = matches[0].distance;
+                best_model_file = matches[0].file;
                 *best_cluster = *cloud_cluster;
             }
         }
         // If the best match is found, continue to process the data
-        if (best_index != -1) {
-            // Load the corresponding file from the model_directory
-            const std::string& best_model_file = model_files[best_index];
+        if (!best_model_file.empty()) {
             std::cout << "Best pose match found: " << best_model_file << std::endl;
 
             // Transform the reference the camera frame to the robot end effector frame (TCP)
@@ -162,61 +146,11 @@ int main(int argc, char** argv) {
                 align_yaxis_with_gravity(object_wrt_TCP, y_align_rotation, accel_data_local, rx_axis_rotation_degrees);
             }
 
-            // Trim the point cloud to get a center target around the middle lower part of the object
+            // Trim the point cloud to get a center target around the middle lower part of the object, and find the
+            // point in it that is closest to the camera (see target.h; the percentages can be adjusted there)
             pcl::PointCloud<pcl::PointXYZ>::Ptr object_band(new pcl::PointCloud<pcl::PointXYZ>);
-            // Get the middle (y) of the object
-            float y_min = std::numeric_limits<float>::max();
-            float y_max = std::numeric_limits<float>::lowest();
-            for (const auto& point : object_wrt_TCP->points) {
-                if (point.y < y_min) {
-                    y_min = point.y;
-                }
-                if (point.y > y_max) {
-                    y_max = point.y;
-                }
-            }
-            // Get the middle (x) of the object
-            float x_sum = 0;
-            float x_min = std::numeric_limits<float>::max();
-            float x_max = std::numeric_limits<float>::lowest();
-            for (const auto& point : object_wrt_TCP->points) {
-                x_sum += point.x;
-                if (point.x < x_min) {
-                    x_min = point.x;
-                }
-                if (point.x > x_max) {
-                    x_max = point.x;
-                }
-            }
-            float x_mean = x_sum / object_wrt_TCP->size();
-            const float object_height = (y_max - y_min);
-            const float object_width = (x_max - x_min);
-            // Y calculated this way for always targeting below halfway
-            const float object_height_center = y_min + (object_height / 2);
-            const float object_band_start = object_height_center + (object_height/2.0f * 0.30f);
-            const float object_band_stop = object_height_center + (object_height/2.0f * 0.70f);
-            const float object_band_width = object_width * 0.25f; // Can adjust the percentage here
-
-            // Get the points that are average or above the middle of the object (because y is flipped we want the bottom part)
-            // Also as we are iterating through the points, store the closest one (in the z direction) to the camera
-            // Trim any points that are on the sides of the object
             Eigen::Vector3f closest_point = Eigen::Vector3f::Zero(); // In metres, in the TCP frame
-            float closest_distance = std::numeric_limits<float>::max();
-            for (const auto& point : object_wrt_TCP->points) {
-                // only consider the center target area
-                if (point.y >= object_band_start && point.y <= object_band_stop) {
-                    if (point.x >= x_mean - object_band_width && point.x <= x_mean + object_band_width)
-                    {
-                        object_band->push_back(point);
-                        if (point.z < closest_distance) {
-                            closest_distance = point.z;
-                            closest_point(0) = point.x;
-                            closest_point(1) = point.y;
-                            closest_point(2) = point.z;
-                        }
-                    }
-                }
-            }
+            const bool target_found = findClosestPointInBand(*object_wrt_TCP, closest_point, object_band.get());
             if (debugging_target_acquire)
             {
                 object_band->width = object_band->size();
@@ -240,7 +174,7 @@ int main(int argc, char** argv) {
                     }
                 }
             }
-            if (object_band->empty() || closest_distance == std::numeric_limits<float>::max()) {
+            if (!target_found) {
                 std::cout << "No points in the object band" << std::endl;
                 continue;
             }
@@ -301,9 +235,12 @@ int main(int argc, char** argv) {
                 std::cout << "RX (Rotation Vector degrees): ";
                 std::cout << std::fixed << std::setprecision(1) << rx_axis_rotation_degrees << std::endl;
             }
-            std::cout << "Once done, press Enter to continue" << std::endl;
-            // Wait for the user to press a key
-            std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+            std::cout << "Once done, press Enter to continue (or type q and press Enter to quit)" << std::endl;
+            // Wait for the user to press Enter
+            std::string answer;
+            if (!std::getline(std::cin, answer) || answer == "q" || answer == "Q") {
+                break;
+            }
 
             if (do_calibration)
             {
@@ -325,14 +262,35 @@ int main(int argc, char** argv) {
                 std::cin >> y_error;
                 std::cout << "Enter the error in the z direction (mm) eg. ' 1.1 ': ";
                 std::cin >> z_error;
-                // Update the pose manager with the error
-                pose_manager.updatePoseCalibrationAdjusterXYZ(x_error / 1000, y_error / 1000, z_error / 1000);
-                // Output the new pose calibration adjuster
-                std::cout << "The new pose calibration adjuster is: " << std::endl;
+                // Drop the rest of the line (the Enter after the number), or it would answer the next "press Enter"
+                // straight away
+                std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+                if (!std::cin) {
+                    std::cerr << "That was not a number, so the calibration was not changed" << std::endl;
+                    std::cin.clear();
+                    std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+                } else {
+                    // Update the pose manager with the error
+                    pose_manager.updatePoseCalibrationAdjusterXYZ(x_error / 1000, y_error / 1000, z_error / 1000);
+                }
+                // Output the new pose calibration adjuster (the translation is in metres)
+                std::cout << "The new pose calibration adjuster is: " << std::endl
+                          << pose_manager.getPoseCalibrationAdjuster() << std::endl;
+            }
+
+            // The robot has moved while the user was busy, so the result that is waiting may have been captured before
+            // or during the move. Throw away the one that is waiting and the one being worked on, so the next
+            // measurement starts from a frame captured after this point.
+            {
+                std::unique_lock<std::mutex> lock(mtx);
+                ready = false;
+                condition_var.wait(lock, [&ready] { return ready; });
+                ready = false;
             }
         }
     }
-    // Stop the processing tread and the Realsense pipeline
+    // Ask the processing thread to finish and wait for it, and only then stop the camera
+    stop_requested = true;
     processing_thread.join();
     pipeline.stop();
     return 0;

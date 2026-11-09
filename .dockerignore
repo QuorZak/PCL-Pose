@@ -3,6 +3,7 @@ build*/
 cmake-build-*/
 docs/
 hardware/
-lab_data/
 f_markers/
+scenes/
+lab_data/test/
 *.md

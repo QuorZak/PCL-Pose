@@ -95,6 +95,8 @@ void displayCoordinateSystem(const Eigen::Matrix4f& pose, cv::Mat& frame, const 
 // It also sets the axes to the principal axes of the point cloud, currently y = up, z = forward/front of the object
 // 0 degrees is defined as directly facing the camera
 // Used by cluster_extraction.cpp to place each library cloud in its own coordinate system.
+// The cloud is centred here (with its viewpoint), and pose is only the rotation: apply it with
+// transformCloudAndViewpoint so that the viewpoint is rotated as well.
 void getPointCloudOriginAndAxes(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud_cluster, Eigen::Matrix4f& pose,
   float object_facing_angle, float calibration_angle_offset, const rs2_vector& accel_data);
 

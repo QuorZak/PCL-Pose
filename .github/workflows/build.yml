@@ -1,7 +1,7 @@
 name: Build
 
-# Builds the Dockerfile, which installs the dependencies and compiles every program. It does not run them: that needs a
-# RealSense camera.
+# Builds the Dockerfile, which installs the dependencies, compiles every program and runs the unit tests. It does not run
+# the programs: that needs a RealSense camera.
 on:
   push:
   pull_request:

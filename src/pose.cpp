@@ -1,5 +1,7 @@
 #include "pcl_pose/pose.h"
+#include "pcl_pose/library.h"
 
+#include <algorithm>
 #include <cmath>
 
 #include <opencv2/imgproc.hpp>
@@ -31,8 +33,16 @@ Eigen::Matrix4f estimatePose(const pcl::PointCloud<pcl::PointXYZ>::Ptr& scene_cl
   icp.setMaximumIterations(icp_max_iterations);
   icp.setTransformationEpsilon(icp_transformation_epsilon);
   icp.setEuclideanFitnessEpsilon(icp_euclidean_fitness_epsilon);
+
+  // Start from the model moved onto the scene cluster (centroid on centroid). The library clouds are centred, while
+  // the scene cluster is around half a metre in front of the camera, which is too far for ICP to find from the identity.
+  const Eigen::Vector4f scene_centroid = cloudCentroid(*scene_cloud);
+  const Eigen::Vector4f model_centroid = cloudCentroid(*model_cloud);
+  Eigen::Matrix4f initial_guess = Eigen::Matrix4f::Identity();
+  initial_guess.block<3, 1>(0, 3) = scene_centroid.head<3>() - model_centroid.head<3>();
+
   pcl::PointCloud<pcl::PointXYZ> Final;
-  icp.align(Final);
+  icp.align(Final, initial_guess);
 
   if (icp.hasConverged()) {
     return icp.getFinalTransformation();
@@ -69,14 +79,9 @@ void displayCoordinateSystem(const Eigen::Matrix4f& pose, cv::Mat& frame, const 
 void getPointCloudOriginAndAxes(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud_cluster, Eigen::Matrix4f& pose,
   const float object_facing_angle, const float calibration_angle_offset, const rs2_vector& accel_data) {
 
-  // Compute the centroid of the point cloud
-  Eigen::Vector4f centroid;
-  compute3DCentroid(*cloud_cluster, centroid);
-
-  // Translate the point cloud to the origin (centroid)
-  Eigen::Affine3f transform = Eigen::Affine3f::Identity();
-  transform.translation() << -centroid[0], -centroid[1], -centroid[2];
-  transformPointCloud(*cloud_cluster, *cloud_cluster, transform);
+  // Translate the point cloud to the origin (centroid). Its viewpoint (where the camera was) moves with it, so the VFH
+  // signature of the centred cloud is still the one the camera sees.
+  centreOnCentroid(*cloud_cluster);
 
   Eigen::Vector3f gravity_direction(accel_data.x, accel_data.y, accel_data.z);
   gravity_direction.normalize();
@@ -111,15 +116,19 @@ void align_yaxis_with_gravity(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud_c
 
   // Calculate the angle between the y-axis and the gravity direction
   const Eigen::Vector3f y_axis = -Eigen::Vector3f::UnitY();
-  angle = acos(y_axis.dot(gravity_direction));
-  // determine if the ange change is positive or negative
-  if (y_axis.cross(gravity_direction).dot(Eigen::Vector3f::UnitX()) < 0) {
-    angle = -angle;
+  const float unsigned_angle = std::acos(std::clamp(y_axis.dot(gravity_direction), -1.0f, 1.0f));
+  const Eigen::Vector3f axis = y_axis.cross(gravity_direction);
+
+  // The rotation that takes the gravity direction back onto the y-axis: the unsigned angle backwards about the axis
+  // (the axis already carries the direction). Using the signed angle here, as this used to, rotated the wrong way
+  // whenever the camera was tilted the other way.
+  y_align_rotation.block<3, 3>(0, 0) = Eigen::Matrix3f::Identity();
+  if (axis.norm() > 1e-6f) {
+    y_align_rotation.block<3, 3>(0, 0) = Eigen::AngleAxisf(-unsigned_angle, axis.normalized()).toRotationMatrix();
   }
 
-  // Subtract the angle from the gravity direction
-  const auto rotation_quart = Eigen::Quaternionf(Eigen::AngleAxisf(-angle, y_axis.cross(gravity_direction).normalized()));
-  y_align_rotation.block<3, 3>(0, 0) = rotation_quart.toRotationMatrix();
+  // The angle that is reported (the RX for the operator) is signed: negative when the tilt is the other way about x
+  angle = axis.dot(Eigen::Vector3f::UnitX()) < 0 ? -unsigned_angle : unsigned_angle;
 
   // Apply the of the resulting transformation to the point cloud to make it align with the world y-axis (gravity)
   if (apply_rotation) {

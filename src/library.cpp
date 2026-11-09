@@ -31,7 +31,7 @@ std::vector<std::string> findLibraryClouds(const std::string& library_directory)
 }
 
 Eigen::Vector4f cloudCentroid(const pcl::PointCloud<pcl::PointXYZ>& cloud) {
-  Eigen::Vector4f centroid;
+  Eigen::Vector4f centroid = Eigen::Vector4f::Zero(); // An empty cloud leaves it untouched
   compute3DCentroid(cloud, centroid);
   return centroid;
 }
@@ -42,12 +42,35 @@ std::string vfhFileForCloud(const std::string& cloud_file) {
   return stem + "_vfh" + extension;
 }
 
+std::string cloudFileForVfh(const std::string& vfh_file) {
+  const std::string vfh_ending = "_vfh.pcd";
+  if (vfh_file.size() < vfh_ending.size()
+      || vfh_file.compare(vfh_file.size() - vfh_ending.size(), vfh_ending.size(), vfh_ending) != 0) {
+    return vfh_file;
+  }
+  return vfh_file.substr(0, vfh_file.size() - vfh_ending.size()) + ".pcd";
+}
+
+void transformCloudAndViewpoint(pcl::PointCloud<pcl::PointXYZ>& cloud, const Eigen::Matrix4f& transform) {
+  pcl::transformPointCloud(cloud, cloud, transform);
+  const Eigen::Matrix3f rotation = transform.block<3, 3>(0, 0);
+  const Eigen::Vector3f origin = rotation * cloud.sensor_origin_.head<3>() + transform.block<3, 1>(0, 3);
+  cloud.sensor_origin_.head<3>() = origin;
+  cloud.sensor_orientation_ = (Eigen::Quaternionf(rotation) * cloud.sensor_orientation_).normalized();
+}
+
 Eigen::Vector4f centreOnCentroid(pcl::PointCloud<pcl::PointXYZ>& cloud) {
   const Eigen::Vector4f centroid = cloudCentroid(cloud);
-  Eigen::Affine3f transform = Eigen::Affine3f::Identity();
-  transform.translation() << -centroid[0], -centroid[1], -centroid[2];
-  transformPointCloud(cloud, cloud, transform);
+  Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
+  transform.block<3, 1>(0, 3) = -centroid.head<3>();
+  transformCloudAndViewpoint(cloud, transform);
   return centroid;
+}
+
+bool viewpointIsLost(const pcl::PointCloud<pcl::PointXYZ>& cloud) {
+  constexpr float minimum_camera_distance = 0.05f;
+  const Eigen::Vector4f centroid = cloudCentroid(cloud);
+  return (cloud.sensor_origin_.head<3>() - centroid.head<3>()).norm() < minimum_camera_distance;
 }
 
 }  // namespace pcl_pose

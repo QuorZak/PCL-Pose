@@ -30,7 +30,7 @@ void showPdcFile(const int usePclViewer = 0) {
 
   pcl::PCLPointCloud2 cloud;
   pcl::console::print_highlight(stderr, "Loading ");
-  pcl::console::print_value(stderr, "%s ", file);
+  pcl::console::print_value(stderr, "%s ", file.c_str());
   if (pcl::io::loadPCDFile(file, cloud) != 0) {
     std::cerr << "Failed to load " + file << std::endl;
   } else {
@@ -98,12 +98,13 @@ void streamDepthMap() {
 
 void find_best_match()
 {
-  // Models
-  std::vector<vfh_model> models;
-
-  // Other required variables
-  flann::Matrix<int> k_indices;
-  flann::Matrix<float> k_distances;
+  // Load the VFH model library and build its search index
+  // (before starting the camera, so there is nothing to shut down if the library is empty)
+  const VfhLibrary library(model_directory);
+  if (library.empty()) {
+    std::cerr << "No VFH models found in " << model_directory << std::endl;
+    return;
+  }
 
   // Initialize the RealSense pipeline
   rs2::pipeline pipe;
@@ -113,21 +114,6 @@ void find_best_match()
 
   // Initialize the filters which will be applied to the depth frame
   initialise_filters();
-
-  // Load VFH model data
-  std::vector<std::string> model_files;
-  load_vfh_model_data(model_directory, models, model_files);
-
-  // Convert models to FLANN format
-  std::unique_ptr<float[]> data_ptr(new float[models.size() * models[0].second.size()]);
-  flann::Matrix data(data_ptr.get(), models.size(), models[0].second.size());
-  for (size_t i = 0; i < data.rows; ++i)
-    for (size_t j = 0; j < data.cols; ++j)
-      data[i][j] = models[i].second[j];
-
-  // Build the FLANN index
-  flann::Index<flann::ChiSquareDistance<float>> index(data, flann::LinearIndexParams());
-  index.buildIndex();
 
   // Camera warmup - dropping several first frames to let auto-exposure stabilize
   for (int i = 0; i < 100; i++) {
@@ -151,7 +137,7 @@ void find_best_match()
   // Compare the captured model to the models
   pcl::PointCloud<pcl::PointXYZ>::Ptr best_cluster(new pcl::PointCloud<pcl::PointXYZ>);
   float best_distance = std::numeric_limits<float>::max();
-  int best_index = -1;
+  std::string best_model_file; // Stays empty until a cluster matches a model
 
   for (const auto& cluster : cluster_indices) {
     int k = 6;
@@ -160,33 +146,28 @@ void find_best_match()
       cloud_cluster->push_back(cloud_filtered->points[idx]);
     }
 
-    // Compute the centroid of the point cloud
-    Eigen::Vector4f centroid;
-    compute3DCentroid(*cloud_cluster, centroid);
-
-    // Translate the point cloud to the origin (centroid)
-    Eigen::Affine3f transform = Eigen::Affine3f::Identity();
-    transform.translation() << -centroid[0], -centroid[1], -centroid[2];
-    transformPointCloud(*cloud_cluster, *cloud_cluster, transform);
+    // Translate the point cloud to the origin (centroid), so it shows on top of the (centred) library cloud. The
+    // viewpoint moves with it, so the VFH signature is still the one the camera sees.
+    centreOnCentroid(*cloud_cluster);
 
     pcl::PointCloud<pcl::VFHSignature308> signature;
     estimate_VFH(cloud_cluster, signature);
 
     vfh_model query_model;
     query_model.second.assign(signature.points[0].histogram, signature.points[0].histogram + 308);
-    nearestKSearch(index, query_model, k, k_indices, k_distances);
+    const std::vector<VfhLibrary::Match> matches = library.nearest(query_model, k);
 
-    if (k_distances[0][0] < best_distance) {
-      best_distance = k_distances[0][0];
-      best_index = k_indices[0][0];
+    if (!matches.empty() && matches[0].distance < best_distance) {
+      best_distance = matches[0].distance;
+      best_model_file = matches[0].file;
       *best_cluster = *cloud_cluster;
     }
   }
 
-  if (best_index != -1) {
+  if (!best_model_file.empty()) {
     // Load the best match model
     pcl::PointCloud<pcl::PointXYZ>::Ptr best_match_cloud(new pcl::PointCloud<pcl::PointXYZ>);
-    std::string best_match_name = models[best_index].first.substr(0, models[best_index].first.find("_vfh.pcd")) + ".pcd";
+    const std::string best_match_name = cloudFileForVfh(best_model_file);
     pcl::io::loadPCDFile(best_match_name, *best_match_cloud);
 
     std::cout << "Best match name: " << best_match_name << std::endl;

@@ -45,7 +45,6 @@ From the report (the final tests used a leaf size of 4 mm):
 ### Minor
 - [Eigen](http://eigen.tuxfamily.org/index.php?title=Main_Page)
 - [Boost](https://www.boost.org/)
-- [HDF5](https://www.hdfgroup.org/solutions/hdf5/)
 - [FLANN](https://www.cs.ubc.ca/research/flann/)
 - [VTK](https://vtk.org/)
 - [CMake](https://cmake.org/)
@@ -59,18 +58,19 @@ make -j$(nproc)
 Run the programs from inside the `build` folder, because the default data paths are relative (`../lab_data/...`). The build type defaults to Release, because PCL and Eigen are very slow without optimisation. The experimental `pose` program is not part of the default build: use `make pose`.
 
 ### Building in Docker
-The `Dockerfile` sets up the whole build environment (Debian 13 with OpenCV 4.10 and PCL 1.15, plus librealsense built from source) and compiles every program, including the experimental `pose`, so it is a way to check that the code builds without installing the dependencies:
+The `Dockerfile` sets up the whole build environment (Debian 13 with OpenCV 4.10 and PCL 1.15, plus librealsense built from source) and compiles every program, including the experimental `pose`, and runs the unit tests, so it is a way to check that the code builds without installing the dependencies:
 ```bash
 docker build -t pcl-pose .
 ```
-It only compiles the code. Running the programs needs a RealSense camera attached to the host. The same build runs on GitHub Actions for every push (`.github/workflows/build.yml`).
+It only compiles the code and runs the tests. Running the programs needs a RealSense camera attached to the host. The same build runs on GitHub Actions for every push (`.github/workflows/build.yml`).
 
 ## Repository contents
 - `include/` and `src/` - The pose library (`pose_core`), shared by the programs, described below.
 - `apps/` - The programs, described below.
 - `config/` - YAML parameter files (`default.yaml` has every key with its default value).
-- `lab_data/` - The object library: point clouds (`<object>_NNNN.pcd`) with their paired VFH signatures (`<object>_NNNN_vfh.pcd`), one folder per object. See `lab_data/LIBRARY_NOTES.md` for what is in it.
+- `lab_data/` - The object library: point clouds (`<object>_NNNN.pcd`) with their paired VFH signatures (`<object>_NNNN_vfh.pcd`), one folder per object. **The library committed there is deprecated and has to be rebuilt**: see `lab_data/LIBRARY_NOTES.md`.
 - `f_markers/` - ArUco marker images created by `generate_markers`.
+- `tests/` - The unit tests.
 - `docs/` - The research report.
 - `hardware/` - CAD files (Inventor `.ipt` and `.stl`) for the D455 end-effector baseplate.
 
@@ -79,22 +79,35 @@ The library is split by job. `include/pose_estimation.h` pulls in all of it (and
 - `config.h` / `src/config.cpp` - Loading the parameters from a YAML file and the `--config` flag.
 - `camera.h` / `src/camera.cpp` - RealSense depth filters and the conversion of a depth frame to a point cloud.
 - `segmentation.h` / `src/segmentation.cpp` - Plane removal and cluster extraction, plus the thread function that does it continuously.
-- `vfh.h` / `src/vfh.cpp` - VFH signatures, loading the library and the nearest-neighbour search.
+- `vfh.h` / `src/vfh.cpp` - VFH signatures (computed from the cloud's viewpoint, where the camera was) and loading the library's signatures.
 - `pose.h` / `src/pose.cpp` - The pose manager, ICP, gravity alignment and the coordinate system overlay.
-- `library.h` / `src/library.cpp` - Finding and centring the clouds of the object library.
+- `library.h` / `src/library.cpp` - Finding the clouds of the object library, and moving or centring a cloud together with its viewpoint.
+- `vfh_library.h` / `src/vfh_library.cpp` - `VfhLibrary`: the library signatures with the index for finding the closest ones.
+- `target.h` / `src/target.cpp` - Choosing the point on the object that the robot aims for.
 - `viewer.h`, `files.h` - Point cloud viewing and listing files.
 
 The programs in the `apps` folder:
 - `manual_measure.cpp` (`manual_measure`) - This file measures the objects in the scene, finds the object that is most similar to the known library of point clouds and calculates the parameters for a robot arm to grasp the object.
-- `cluster_extraction.cpp` (`extraction`) - Interactive tool for building the library. You enter the angle the object is facing, it captures until it finds exactly one cluster, places the coordinate system at the centre of the object, aligns it with gravity using the camera's accelerometer, and saves the cloud and its VFH into `lab_data/<object>/`. You review the result and keep or discard it.
-- `cluster_extraction_test.cpp` (`extraction_test`) - Takes a single capture and saves every cluster it finds, with its VFH, into `lab_data/test/`. The clouds are saved as seen by the camera (no re-orientation), so move the ones you want into the library folder by hand, and keep in mind that they are not centred like the ones saved by `extraction`.
+- `cluster_extraction.cpp` (`extraction`) - Interactive tool for building the library. You enter the angle the object is facing, it captures until it finds exactly one cluster, places the coordinate system at the centre of the object, aligns it with gravity using the camera's accelerometer, and saves the cloud (with its viewpoint, so its VFH is still the one the camera sees) and its VFH into `lab_data/<object>/`. You review the result and keep or discard it.
+- `cluster_extraction_test.cpp` (`extraction_test`) - Takes a single capture and saves every cluster it finds, with its VFH, into `lab_data/test/`. The clouds are saved as seen by the camera (no re-orientation), so move the ones you want into the library folder by hand, and centre them with `rebuild_vfh --apply` to match the ones saved by `extraction`.
 - `scratch_tools.cpp` (`scratch_tools`) - A scratch file for trying out the functions in the library (viewing saved clouds, streaming the depth map, matching a capture against the library). It is not an automated test suite.
 - `main_marker.cpp` (`marker`) and `marker_pose_estimation.h` - Detect ArUco markers in the colour stream and print their pose. Useful for testing the pose, camera calibration, and distances.
 - `generate_markers.cpp` (`generate_markers`) - Writes the ArUco marker images into `f_markers/`.
-- `rebuild_vfh.cpp` (`rebuild_vfh`) - Checks that every cloud in the object library is centred on its centroid, and with `--apply` centres them and recomputes the paired VFH signatures. No camera needed. See `lab_data/LIBRARY_NOTES.md`.
+- `replay.cpp` (`replay`) - Runs the whole recognition pipeline on a saved scene, no camera needed. See "Replaying scenes without a camera".
+- `capture_scene.cpp` (`capture_scene`) - Saves one scene from the camera for `replay`.
+- `rebuild_vfh.cpp` (`rebuild_vfh`) - Checks every cloud in the object library: whether it is centred on its centroid, and whether its viewpoint is usable. With `--apply` it centres the usable clouds (moving the viewpoint with them) and recomputes the paired VFH signatures. No camera needed. See `lab_data/LIBRARY_NOTES.md`.
 
 Experimental, and not in the default build:
-- `main.cpp` (`pose`, use `make pose`) - This file was intended to be the main file for the project. It attempts to find the 6D pose of the object by aligning the matching library cloud to the matched cluster with ICP, and draws the coordinate system on the colour image. The library is supposed to contain point clouds with the Z axis pointing forward, so the object must be rotated to match the library. Ensure you have a reliable library including defined x,y,z axis with respect to object pose.
+- `main.cpp` (`pose`, use `make pose`) - This file was intended to be the main file for the project. It attempts to find the 6D pose of the object by aligning the matching library cloud to the matched cluster with ICP (starting from the library cloud moved onto the cluster), and draws the coordinate system on the colour image. The library is supposed to contain point clouds with the Z axis pointing forward, so the object must be rotated to match the library. Ensure you have a reliable library including defined x,y,z axis with respect to object pose.
+
+## Tests
+`tests/` has [GoogleTest](https://github.com/google/googletest) unit tests for the parts that need no camera: the image crop, loading the config (including that `config/default.yaml` matches the defaults in the code), the file and library helpers (including moving a cloud with its viewpoint), that a VFH signature is unchanged when a cloud is moved or centred with its viewpoint, the pose manager and the gravity alignment, the target search (including coordinates that are all negative), matching against the VFH library committed in `lab_data/`, and segmenting a synthetic scene (a table with a can standing on it).
+```bash
+sudo apt install libgtest-dev
+cmake -S . -B build && cmake --build build
+ctest --test-dir build --output-on-failure
+```
+They are built by default when GoogleTest is installed (`-DPOSE_BUILD_TESTS=OFF` to skip them), and the Docker build and GitHub Actions run them. The camera code, the live threads and the robot interaction are not covered.
 
 ## Configuration
 The tunable values (camera stream, cloud filtering, ICP, the camera-to-TCP offset, the library location...) are described in `include/pcl_pose/parameters.h` and can be changed without recompiling from a YAML file. `config/default.yaml` lists every key with its default value, which suits the setup in my lab. Many of them are hard-coded to match the equipment I have available, so you will need to adjust them to match your own setup: copy the file, edit it, and run a program with `--config <your file>`. When no `--config` is given, a program started from the `build` folder loads `../config/default.yaml` if it exists, and keys that are missing keep their default value.
@@ -102,7 +115,19 @@ The tunable values (camera stream, cloud filtering, ICP, the camera-to-TCP offse
 The programs also take command-line flags instead of editing the code (`--object`, `-m`, `-k`, `--home`, `--average`, `--calibrate`, `--debug-clusters`, `--debug-target`). Each program lists its own flags in the comment above `main()`.
 
 ## Setting up your own library
-To set up your own library of point clouds, use `cluster_extraction.cpp` (the `extraction` program). Every cloud in the library should be centred on its centroid (see `lab_data/LIBRARY_NOTES.md`; `rebuild_vfh` checks this). Run it with `--object <name>`, and for each capture type the angle the object is facing. It saves each cluster and its paired VFH into `lab_data/<name>/`. Creating a folder for each object is recommended.
+The library committed in `lab_data/` is deprecated (it was captured with the old code, see `lab_data/LIBRARY_NOTES.md`), so a new one has to be built before the matching can be trusted. To set up a library of point clouds, use `cluster_extraction.cpp` (the `extraction` program). Run it with `--object <name>`, and for each capture type the angle the object is facing. It saves each cluster, centred and with its viewpoint, and its paired VFH into `lab_data/<name>/`. Creating a folder for each object is recommended, and use the same leaf size for every capture. `rebuild_vfh -m <folder>` checks the result. The steps are in `lab_data/LIBRARY_NOTES.md`.
+
+## Replaying scenes without a camera
+`replay` runs the whole recognition pipeline on a saved scene instead of the camera: it segments the scene into clusters, matches each cluster's VFH against the object library, and works out the point to aim for with the best match, using the same code and parameters as the live programs. So the matching, the parameters and the library can be worked on (and compared) without the camera plugged in or the robot set up.
+
+To get a scene, capture one with the camera while it looks at the objects, then replay it as often as you like:
+```bash
+./capture_scene --name table      # saves ../scenes/table_0001.pcd
+./replay ../scenes/table_0001.pcd
+./replay ../scenes/table_0001.pcd -k 5 -m ../lab_data/spray_bottle_tall --config my_params.yaml
+./replay ../scenes/table_0001.pcd --expect spray_bottle   # exit status 3 unless the best match has that in its name
+```
+Scenes are several MB each, so `/scenes/` is in `.gitignore`.
 
 ## Running the manual measure
 Make sure you have very accurately set the parameters in the config file (see Configuration) to match your setup. You can then run the `manual_measure` program, for example `./manual_measure --home elevated`. It will measure the objects in the scene, find the object that is most similar to the known library of point clouds, and calculate the parameters for a robot arm to grasp the object. It is important that you point the program to the correct library location (`model_directory` in the config file, or `-m <folder>`) as it attempts to find the object in the scene that best matches a known object. You should see the output in the terminal.
@@ -114,10 +139,10 @@ From the report:
 - The minimum detection range is about 355 mm from the camera. Shallow camera angles add noise on perpendicular surfaces, and there is a slight bias towards objects in front of, or to the left of, the left-hand imager.
 
 In the code:
-- The library is a mix of centred and uncentred clouds, and the live programs do not centre the scene clusters, so the matching convention needs settling (`lab_data/LIBRARY_NOTES.md`).
+- The committed library is deprecated and has to be captured again with the improved code (`lab_data/LIBRARY_NOTES.md`).
 - The averaging (`--average`) and the calibration adjustment (`--calibrate`) have not been tried on the robot.
 - `pose` is experimental, and it reads colour frames from the same pipeline as its processing thread, so each only gets some of the framesets.
-- There are no automated tests, and it has only been built on Ubuntu with a RealSense camera attached.
+- Only the parts that need no camera have unit tests. The camera code, the live threads and the robot interaction have only been tried by hand, on Ubuntu with a RealSense camera attached.
 
 ## Future work
 From the report:

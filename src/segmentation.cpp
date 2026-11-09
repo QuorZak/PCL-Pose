@@ -50,8 +50,12 @@ void filterAndSegmentPointCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud
     seg.setInputCloud(cloud_filtered);
     seg.segment(*inliers, *coefficients);
     if (inliers->indices.empty()) {
-      std::cout << "Could not estimate a planar model for the given dataset." << std::endl;
-      return;
+      // No (more) planes: go on and look for the clusters in what is left. Returning here used to give no clusters at
+      // all for a scene without a table or floor in view.
+      if (debugging) {
+        std::cout << "Could not estimate a planar model for the given dataset." << std::endl;
+      }
+      break;
     }
 
     // Extract the planar inliers from the input cloud

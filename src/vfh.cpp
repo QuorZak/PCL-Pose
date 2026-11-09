@@ -17,12 +17,20 @@ void estimate_VFH(const pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud, pcl::PointCl
 {
   const pcl::PointCloud<pcl::Normal>::Ptr normals (new pcl::PointCloud<pcl::Normal> ());
 
+  // Where the camera was, in the cloud's own coordinates. Part of the signature (and which way the normals point)
+  // depends on it, so it must be the real camera position: the origin for a cloud in the camera frame, or wherever a
+  // centred library cloud's camera ended up (stored in sensor_origin_, the VIEWPOINT of the .pcd file).
+  const float vp_x = cloud->sensor_origin_[0];
+  const float vp_y = cloud->sensor_origin_[1];
+  const float vp_z = cloud->sensor_origin_[2];
+
   // Estimate point cloud normals
   const pcl::search::KdTree<pcl::PointXYZ>::Ptr normalTree (new pcl::search::KdTree<pcl::PointXYZ> ());
   pcl::NormalEstimation<pcl::PointXYZ, pcl::Normal> ne;
   ne.setInputCloud (cloud);
   ne.setSearchMethod (normalTree);
   ne.setRadiusSearch (0.03);
+  ne.setViewPoint (vp_x, vp_y, vp_z);
   ne.compute(*normals);
 
   // Estimate VFH signature of the point cloud
@@ -31,6 +39,7 @@ void estimate_VFH(const pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud, pcl::PointCl
   vfh.setInputCloud (cloud);
   vfh.setInputNormals (normals);
   vfh.setSearchMethod (tree);
+  vfh.setViewPoint (vp_x, vp_y, vp_z);
   vfh.compute (signature);
 }
 
@@ -63,14 +72,22 @@ bool load_vfh_histogram(const std::filesystem::path &path, vfh_model &vfh)
 
   // Treat the VFH signature as a single Point Cloud and load data from it
   pcl::PointCloud <pcl::VFHSignature308> point;
-  pcl::io::loadPCDFile (path.string (), point);
+  if (pcl::io::loadPCDFile (path.string (), point) == -1 || point.empty ())
+  {
+    return (false);
+  }
   vfh.second.resize (308);
 
+  // The fields of the VFHSignature308 type (the overload that also took the cloud was removed in PCL 1.12)
   std::vector <pcl::PCLPointField> fields;
-  pcl::getFieldIndex (point, "vfh", fields);
+  const int field_idx = pcl::getFieldIndex<pcl::VFHSignature308> ("vfh", fields);
+  if (field_idx < 0)
+  {
+    return (false);
+  }
 
   // Fill vfh_model.second with histogram data
-  for (size_t i = 0; i < fields[vfh_idx].count; ++i)
+  for (size_t i = 0; i < fields[field_idx].count && i < vfh.second.size (); ++i)
   {
     vfh.second[i] = point.points[0].histogram[i];
   }
@@ -115,22 +132,6 @@ void load_vfh_model_data(const std::filesystem::path &base_dir, std::vector<vfh_
       pcl::console::print_highlight("%s\n", ss.str().c_str());
     }
   }
-}
-
-void nearestKSearch(const flann::Index<flann::ChiSquareDistance<float> > &index, const vfh_model &model,
-  const int k, flann::Matrix<int> &indices, flann::Matrix<float> &distances)
-{
-  // Query point. The vector owns the memory, the matrix only points at it, so nothing needs freeing afterwards
-  std::vector<float> query(model.second);
-  flann::Matrix<float> p(query.data(), 1, query.size());
-
-  // The result matrices are allocated here, so free what an earlier call allocated (nothing on the first call)
-  // before replacing it. This is what used to leak on every frame of the live loops.
-  delete[] indices.ptr();
-  delete[] distances.ptr();
-  indices = flann::Matrix<int>(new int[k], 1, k);
-  distances = flann::Matrix<float>(new float[k], 1, k);
-  index.knnSearch (p, indices, distances, k, flann::SearchParams (512));
 }
 
 }  // namespace pcl_pose
