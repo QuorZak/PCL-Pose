@@ -144,6 +144,8 @@ In the code:
 - `pose` is experimental, and it reads colour frames from the same pipeline as its processing thread, so each only gets some of the framesets.
 - Only the parts that need no camera have unit tests. The camera code, the live threads and the robot interaction have only been tried by hand, on Ubuntu with a RealSense camera attached.
 
+What still needs testing on the camera and the robot, and the other open tasks, are listed in [TODO.md](TODO.md).
+
 ## Future work
 From the report:
 - Average the target point over several samples to reduce the variation.
