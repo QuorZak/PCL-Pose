@@ -6,6 +6,13 @@ A series of tools and functions for object recognition and 6DOF pose estimation 
 
 The approach is PCL's cluster recognition with VFH (viewpoint feature histogram) descriptors. The VFH documentation can be found in the PCL [tutorial](https://pcl.readthedocs.io/projects/tutorials/en/master/vfh_recognition.html). The starting point for this project was the official PCL documentation as well as the [previous work](https://github.com/dkebude/PCL-object-recognition) of Doğancan Kebude.
 
+## Highlights
+- **Perception pipeline in C++17 with PCL:** depth filtering, voxel down-sampling, RANSAC plane removal, Euclidean clustering, VFH object recognition with a FLANN nearest-neighbour search, and ICP pose refinement.
+- **Hardware integration:** an Intel RealSense D455 (depth and accelerometer) and a Universal Robots UR5e cobot, with the camera processing on its own thread.
+- **Accuracy:** in the lab tests the pose estimates were typically within 5 mm on the x-axis and 2 mm on the z-axis.
+- **Engineering:** a modular library, YAML configuration, offline replay of saved scenes without a camera, GoogleTest unit tests, and a Docker build that runs on GitHub Actions.
+- **History:** started as my Master's research in 2024 ([v0.1](https://github.com/QuorZak/PCL-Pose/releases/tag/v0.1-masters-research)), and reworked in 2026 ([v0.2](https://github.com/QuorZak/PCL-Pose/releases/tag/v0.2-first-major-rework)).
+
 ## How it works
 ```
 RealSense D455 depth frames
