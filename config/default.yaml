@@ -1,0 +1,57 @@
+%YAML:1.0
+---
+# Parameters for the pose programs. Every key is the name of a variable in include/pcl_pose/parameters.h, where each
+# one is described. The values below are the defaults that are compiled in, which suit the lab setup this project was
+# built in (RealSense D455 on a UR5e). Copy this file, change what you need, and run a program with
+#   --config <your file>
+# Programs run from the build folder load ../config/default.yaml automatically when no --config is given.
+# Keys that are left out keep their default value. Distances are in metres unless stated otherwise.
+
+# Depth image
+image_reduced_to_percentage: 80
+depth_filter_min_distance: 0.25
+depth_filter_max_distance: 0.7
+depth_filter_smooth_alpha: 0.25
+depth_filter_smooth_delta: 60.
+depth_filter_temporal_holes_fill: 6.
+depth_filter_holes_fill: 2.
+
+# Camera stream (848x480 at 15 fps is optimal for the RealSense D455)
+cam_res_width: 848
+cam_res_height: 480
+cam_fps: 15
+
+# Cloud filtering and clustering
+leaf_size: 0.004
+cluster_tolerance: 0.01
+min_cluster_size: 500
+max_cluster_size: 25000
+segment_distance_threshold: 0.02
+segment_probability: 0.99
+segment_radius_min: 0.01
+segment_radius_max: 0.1
+filter_cluster_to_x_percent: 0.99
+
+# Pose estimation (ICP)
+icp_max_iterations: 50
+icp_transformation_epsilon: 1.0e-08
+icp_euclidean_fitness_epsilon: 1.
+
+# Pose manager (stability_factor: 1 very willing ... 3 linear ... 5 very resistant)
+start_scale_distance: 0.01
+stop_scale_distance: 0.5
+stability_factor: 4
+
+# Camera to robot end effector (TCP) translation
+camera_to_TCP_x: -0.0475
+camera_to_TCP_y: -0.06
+camera_to_TCP_z: 0.031
+
+# Offsets
+# in mm
+spray_collision_offset: -57.
+# in degrees, used when building the library
+object_angle_calibration_offset: -40.
+
+# Where the reference library is
+model_directory: "../lab_data/spray_bottle_tall/"

@@ -1,0 +1,9 @@
+.git
+build*/
+cmake-build-*/
+docs/
+hardware/
+f_markers/
+scenes/
+lab_data/test/
+*.md

@@ -1,28 +1,24 @@
+# Build output
+build*/
+cmake-build-*/
+*.o
+*.a
 
-# Random variables
-gitpo.txt
+# IDE and editor files
+.idea/
+.vscode/
 
-# Compiled source #
-/build/
-/cmake-build-debug/
-
-# Logs and databases
-*.log
-*.sqlite
-
-# OS generated files #
+# OS generated files
 .DS_Store
-ehthumbs.db
-Icon?
 Thumbs.db
+ehthumbs.db
 
-# Ignore everything to do with .idea
-.idea/*
-/.idea/
+# Logs
+*.log
 
-# PCL Demo
-/PCL_Official_VFH_Demo/
+# Scenes saved by capture_scene for replay (a scene is several MB, remove this line to keep some in git)
+/scenes/
 
-# Test Data
+# Scratch captures (created by extraction_test, not part of the reference library)
 /lab_data/test/
 /pose_estimation_cluster/
