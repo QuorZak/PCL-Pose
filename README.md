@@ -1,4 +1,7 @@
 # PCL-Pose
+
+[![Build](https://github.com/QuorZak/PCL-Pose/actions/workflows/build.yml/badge.svg)](https://github.com/QuorZak/PCL-Pose/actions/workflows/build.yml)
+
 A series of tools and functions for object recognition and 6DOF pose estimation using [PCL](http://pointclouds.org/), an Intel RealSense D455 depth camera and a robot arm. It was developed for my Master's research report, [Improving Robotic Perception by Refining 6D Object Pose Estimation using Push Based Manipulation](docs/PCL-Pose_Research_Report_2024-11-11.pdf) (University of Auckland, 2024), where the pose and approach point it calculates are used to push objects with a UR5e cobot.
 
 The approach is PCL's cluster recognition with VFH (viewpoint feature histogram) descriptors. The VFH documentation can be found in the PCL [tutorial](https://pcl.readthedocs.io/projects/tutorials/en/master/vfh_recognition.html). The starting point for this project was the official PCL documentation as well as the [previous work](https://github.com/dkebude/PCL-object-recognition) of Doğancan Kebude.
@@ -54,6 +57,13 @@ cmake ..
 make -j$(nproc)
 ```
 Run the programs from inside the `build` folder, because the default data paths are relative (`../lab_data/...`). The build type defaults to Release, because PCL and Eigen are very slow without optimisation. The experimental `pose` program is not part of the default build: use `make pose`.
+
+### Building in Docker
+The `Dockerfile` sets up the whole build environment (Debian 13 with OpenCV 4.10 and PCL 1.15, plus librealsense built from source) and compiles every program, including the experimental `pose`, so it is a way to check that the code builds without installing the dependencies:
+```bash
+docker build -t pcl-pose .
+```
+It only compiles the code. Running the programs needs a RealSense camera attached to the host. The same build runs on GitHub Actions for every push (`.github/workflows/build.yml`).
 
 ## Repository contents
 - `include/` and `src/` - The pose library (`pose_core`), shared by the programs, described below.
